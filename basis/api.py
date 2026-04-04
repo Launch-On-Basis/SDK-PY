@@ -547,21 +547,45 @@ class BasisAPI:
         response.raise_for_status()
         return response.json()
 
-    def sync_faucet(self, tx_hash: str) -> Dict[str, Any]:
-        """Sync a faucet claim transaction for referral tracking.
-
-        ``POST /api/v1/sync/faucet``
-
-        No authentication required. Rate limited to 20 req/min.
-        """
-        url = f"{self.client.api_domain}/api/v1/sync/faucet"
-        response = self.session.post(url, json={"txHash": tx_hash})
-        response.raise_for_status()
-        return response.json()
-
     def sync_loan(self, tx_hash: str) -> Dict[str, Any]:
         """Deprecated: use sync_transaction() instead."""
         return self.sync_transaction(tx_hash)
+
+    # ------------------------------------------------------------------
+    # Faucet (session required)
+    # ------------------------------------------------------------------
+
+    def get_faucet_status(self) -> Dict[str, Any]:
+        """Check faucet eligibility and signal breakdown.
+
+        ``GET /api/v1/faucet/status``
+
+        Requires SIWE session. The wallet is determined from the session.
+
+        Returns dict with keys: eligible, canClaim, dailyAmount, signals,
+        cooldownRemaining, nextClaimAt, hasReferrer.
+        """
+        return self._session_request("GET", "/v1/faucet/status")
+
+    def claim_faucet(self, referrer: Optional[str] = None) -> Dict[str, Any]:
+        """Claim daily USDB from the treasury.
+
+        ``POST /api/v1/faucet/claim``
+
+        Requires SIWE session. Amount is based on active signals (max 500
+        USDB/day). 24-hour cooldown between claims.
+
+        Parameters
+        ----------
+        referrer : str, optional
+            Referrer wallet address for the referral system.
+
+        Returns dict with keys: success, amount, txHash, signals.
+        """
+        body: Dict[str, str] = {}
+        if referrer:
+            body["referrer"] = referrer
+        return self._session_request("POST", "/v1/faucet/claim", json=body)
 
     # ------------------------------------------------------------------
     # Loans, Vault & Vesting read endpoints (session or API key)

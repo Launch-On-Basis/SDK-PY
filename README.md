@@ -23,7 +23,7 @@ from basis import BasisClient
 # Full mode — authenticates via SIWE, provisions API key
 client = BasisClient.create(private_key='0xYourPrivateKey')
 
-# Claim test USDB from faucet (one-time, 10,000 USDB)
+# Claim daily USDB from faucet (signal-based, max 500/day)
 client.claim_faucet()
 
 # Buy STASIS (ecosystem token)
@@ -81,7 +81,7 @@ leaderboard = client.api.get_leaderboard()
 The `client.api` object provides 60+ methods for off-chain data:
 
 - **Data**: tokens, candles, trades, orders, wallet transactions, market liquidity
-- **Sync**: universal transaction sync, order sync, faucet sync
+- **Sync**: universal transaction sync, order sync
 - **Events**: loan, vault, vesting, market resolution events
 - **Social**: Reef feed (posts, comments, voting), tweet verification, bug reports
 - **Profile**: leaderboard, public/private profile, referrals, stats, projects

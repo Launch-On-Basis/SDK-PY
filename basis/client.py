@@ -26,6 +26,23 @@ logger = logging.getLogger(__name__)
 DEFAULT_RPC_URL = "https://bsc-dataseed.binance.org/"
 BSC_CHAIN_ID = 56
 
+# Hardcoded defaults — used as fallback when the remote contracts.json is unreachable
+DEFAULT_ADDRESSES = {
+    "factory": "0xB6BA282f29A7C67059f4E9D0898eE58f5C79960D",
+    "swap": "0x9F9cF98F68bDbCbC5cf4c6402D53cEE1D180715f",
+    "marketTrading": "0x396216fc9d2c220afD227B59097cf97B7dEaCb57",
+    "loanHub": "0xFe19644d52fD0014EBa40c6A8F4Bfee4Ce3B2449",
+    "vesting": "0xedd987c7723B9634b0Aa6161258FED3e89F9094C",
+    "usdb": "0x42bcF288e51345c6070F37f30332ee5090fC36BF",
+    "mainToken": "0x3067ce754a36d0a2A1b215C4C00315d9Da49EF15",
+    "staking": "0x1FE7189270fb93c32a1fEfA71d1795c05C41cb33",
+    "resolver": "0xB5FFCCB422531Cf462ec430170f85d8dD3dC3f57",
+    "privateMarket": "0x28675A82ee3c2e6d2C85887Ea587FbDD3E3C86EE",
+    "reader": "0xF406cA6403c57Ad04c8E13F4ae87b3732daa087d",
+    "leverage": "0xeffb140d821c5B20EFc66346Cf414EeAC8A8FDB2",
+    "taxes": "0x4501d1279273c44dA483842ED17b5451e7d3A601",
+}
+
 
 class BasisClient:
     """Client for the Basis protocol on BSC.
@@ -44,19 +61,19 @@ class BasisClient:
         api_key: Optional[str] = None,
         api_domain: str = "https://launchonbasis.com",
         gasless: bool = True,
-        factory_address: str = "0x13b32CcB24F1fd070cE8Ee5EA83AAC5a60f853DA",
-        swap_address: str = "0xD9C99E3E92c5Cb303371223FAaA3C8f5FeE39399",
-        market_trading_address: str = "0xcf8368E674A13662BA55F98bdb9A6FBC6aCEbEeE",
-        loan_hub_address: str = "0x4d3ca2DA5F77FA8c0D0CA53b4078D025519b6d8f",
-        vesting_address: str = "0xd27d9999b360f1D9c1Fb88F91d038D9d674f127b",
-        usdb_address: str = "0x1b2b5D36e5F07BD6a272F95079590B70AdB776b1",
-        main_token_address: str = "0x4B01013aC1F3501c64DFC7bC08aE5E23F391b5EA",
-        staking_address: str = "0xb956d467D95a16f660aaBF25c5dE81A897254332",
-        resolver_address: str = "0xDCE6daaE48Ec55977D22BB9D855BF7ef222077cf",
-        private_market_address: str = "0xe9aA86286bE3b353241091910FB11Fd62CC88bd3",
-        reader_address: str = "0x320C73CD00Dd484b53140795F9eD1C875A5A6D99",
-        leverage_address: str = "0xD10B597d2B5CDAf965f7AC29339866513311e84d",
-        taxes_address: str = "0xb65Ff977fFb0ABa34c28e8b571D29DFb1a3416a4",
+        factory_address: str = DEFAULT_ADDRESSES["factory"],
+        swap_address: str = DEFAULT_ADDRESSES["swap"],
+        market_trading_address: str = DEFAULT_ADDRESSES["marketTrading"],
+        loan_hub_address: str = DEFAULT_ADDRESSES["loanHub"],
+        vesting_address: str = DEFAULT_ADDRESSES["vesting"],
+        usdb_address: str = DEFAULT_ADDRESSES["usdb"],
+        main_token_address: str = DEFAULT_ADDRESSES["mainToken"],
+        staking_address: str = DEFAULT_ADDRESSES["staking"],
+        resolver_address: str = DEFAULT_ADDRESSES["resolver"],
+        private_market_address: str = DEFAULT_ADDRESSES["privateMarket"],
+        reader_address: str = DEFAULT_ADDRESSES["reader"],
+        leverage_address: str = DEFAULT_ADDRESSES["leverage"],
+        taxes_address: str = DEFAULT_ADDRESSES["taxes"],
     ):
         self.rpc_url = rpc_url
         self.api_domain = api_domain
@@ -200,10 +217,32 @@ class BasisClient:
         if rpc_url != DEFAULT_RPC_URL:
             client._validate_rpc()
 
-        # 2. Auth + key provisioning
-        if private_key and not api_key:
+        # 2. Fetch remote contract addresses and warn on mismatch
+        try:
+            import requests as _req
+            res = _req.get(f"{client.api_domain}/contracts.json", timeout=5)
+            if res.ok:
+                remote = res.json()
+                mismatched = [
+                    name for name, default_addr in DEFAULT_ADDRESSES.items()
+                    if name in remote and remote[name].lower() != default_addr.lower()
+                ]
+                if mismatched:
+                    import warnings
+                    warnings.warn(
+                        "[basis-sdk] Contract addresses have changed. Please update your SDK to the latest version. "
+                        f"Mismatched: {', '.join(mismatched)}",
+                        stacklevel=2,
+                    )
+        except Exception:
+            pass  # Remote unreachable — continue with hardcoded defaults
+
+        # 3. Auth + key provisioning
+        if private_key:
             client.authenticate()
-            client.ensure_api_key()
+            # Only provision an API key if one wasn't provided
+            if not api_key:
+                client.ensure_api_key()
 
         return client
 
@@ -282,25 +321,42 @@ class BasisClient:
     # ------------------------------------------------------------------
 
     def ensure_api_key(self) -> str:
-        """Ensure an API key exists, creating one if necessary.
+        """Ensure an API key is available.
 
-        After this call :pyattr:`api_key` is guaranteed to be set.
+        * If an API key was already provided via the constructor, returns it.
+        * If the server reports an existing key, the SDK cannot retrieve the
+          plaintext (only a masked hint is returned). Raises an error
+          instructing the operator to supply the key.
+        * If no keys exist yet, a new one is created. The key is only returned
+          **once** at creation time — store it securely for future runs.
 
         Returns the API key string.
         """
+        # Already have a key (passed via constructor or prior call)
+        if self.api_key:
+            return self.api_key
+
         keys_resp = self.api.list_api_keys()
         keys = keys_resp.get("keys", [])
 
-        if keys and keys[0].get("key"):
-            self.api_key = keys[0]["key"]
-            logger.info("Using existing API key: %s...", self.api_key[:12])
-        else:
-            # Delete existing key with null value before creating new one
-            if keys and not keys[0].get("key"):
-                self.api.delete_api_key(keys[0]["id"])
-            create_resp = self.api.create_api_key(label="basis-sdk-auto")
-            self.api_key = create_resp["key"]
-            logger.info("Created new API key: %s...", self.api_key[:12])
+        if keys:
+            # A key exists but we can't retrieve the plaintext
+            raise RuntimeError(
+                "An API key already exists for this wallet but the full key cannot be "
+                "retrieved (the server only returns a masked hint). Pass your API key "
+                'via the api_key option when creating the client, e.g.: '
+                'BasisClient.create(private_key=..., api_key="bsk_...")'
+            )
+
+        # No keys exist — create one
+        create_resp = self.api.create_api_key(label="basis-sdk-auto")
+        self.api_key = create_resp["key"]
+
+        logger.warning(
+            "New API key created: %s — Save this key, it cannot be retrieved again. "
+            "Pass it via the api_key option on future runs.",
+            self.api_key,
+        )
 
         return self.api_key
 
@@ -324,51 +380,17 @@ class BasisClient:
             raise ValueError("No account is associated with this client.")
         return self.api.logout(self.account.address)
 
-    def claim_faucet(self, referrer: str = "0x0000000000000000000000000000000000000000") -> Dict[str, Any]:
-        """Claim 10,000 test USDB from the faucet. One claim per wallet, ever.
+    def claim_faucet(self, referrer: Optional[str] = None) -> Dict[str, Any]:
+        """Claim daily USDB from the faucet via the server API.
 
-        USDB from faucet is non-transferable except to Basis protocol contracts.
-        Optionally pass a referrer address for the referral system.
+        Amount depends on active signals (max 500 USDB/day, 24h cooldown).
+        Requires SIWE session — call :meth:`authenticate` first.
+
+        Convenience wrapper around ``client.api.claim_faucet()``.
+
+        Parameters
+        ----------
+        referrer : str, optional
+            Referrer wallet address for the referral system.
         """
-        if not self.account:
-            raise ValueError("Wallet (private_key) is required to claim faucet.")
-
-        faucet_abi = [{"inputs": [{"name": "_referrer", "type": "address"}], "name": "faucet", "outputs": [], "stateMutability": "nonpayable", "type": "function"}]
-        usdb_contract = self.web3.eth.contract(
-            address=Web3.to_checksum_address(self.usdb_address), abi=faucet_abi
-        )
-
-        func = usdb_contract.functions.faucet(Web3.to_checksum_address(referrer))
-        tx = func.build_transaction({
-            'from': self.account.address,
-            'nonce': self.web3.eth.get_transaction_count(self.account.address),
-        })
-        signed_tx = self.web3.eth.account.sign_transaction(tx, private_key=self.account.key)
-        tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-
-        return {'hash': "0x" + tx_hash.hex(), 'receipt': receipt}
-
-    def set_referrer(self, referrer: str) -> Dict[str, Any]:
-        """Set a referrer for the current wallet. One-time only — reverts if already set.
-
-        Use this if you didn't pass a referrer during claim_faucet().
-        """
-        if not self.account:
-            raise ValueError("Wallet (private_key) is required.")
-
-        abi = [{"inputs": [{"name": "_referrer", "type": "address"}], "name": "setReferrer", "outputs": [], "stateMutability": "nonpayable", "type": "function"}]
-        usdb_contract = self.web3.eth.contract(
-            address=Web3.to_checksum_address(self.usdb_address), abi=abi
-        )
-
-        func = usdb_contract.functions.setReferrer(Web3.to_checksum_address(referrer))
-        tx = func.build_transaction({
-            'from': self.account.address,
-            'nonce': self.web3.eth.get_transaction_count(self.account.address),
-        })
-        signed_tx = self.web3.eth.account.sign_transaction(tx, private_key=self.account.key)
-        tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-
-        return {'hash': "0x" + tx_hash.hex(), 'receipt': receipt}
+        return self.api.claim_faucet(referrer=referrer)
