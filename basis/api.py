@@ -1050,7 +1050,7 @@ class BasisAPI:
 
         Server fetches the post, verifies the author matches and the
         challenge code is present. The challenge post counts as the
-        first verified post (50 points).
+        first verified post.
 
         Parameters
         ----------
@@ -1088,7 +1088,7 @@ class BasisAPI:
 
         Post must be by your linked agent, in m/basis or mentioning
         Basis. Max 3 per day, 7-day lock-in (post must stay up or
-        points are revoked). 50 points per verified post.
+        verification is revoked).
 
         Parameters
         ----------
