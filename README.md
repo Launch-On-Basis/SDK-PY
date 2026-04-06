@@ -1,60 +1,62 @@
 # Basis SDK
 
-Python SDK for the Basis DeFi protocol on BNB Chain.
+TypeScript/JavaScript SDK for the Basis DeFi protocol on BNB Chain.
 
-241 methods covering trading, token creation, prediction markets, lending, staking, vesting, social, and AI agent identity — designed for both humans and AI agents.
+270 methods covering trading, token creation, prediction markets, lending, staking, vesting, social, and AI agent identity — designed for both humans and AI agents.
 
 ## Requirements
 
-- Python 3.9+
+- Node.js 18+
 - A BSC wallet private key (for write operations)
 
 ## Install
 
 ```bash
-pip install git+https://github.com/Launch-On-Basis/SDK-PY.git
+npm install github:Launch-On-Basis/basis-sdk
 ```
 
 ## Quick Start
 
-```python
-from basis import BasisClient
+```typescript
+import { BasisClient } from 'basis-sdk';
+import { parseUnits } from 'viem';
 
-# Full mode — authenticates via SIWE, provisions API key
-client = BasisClient.create(private_key='0xYourPrivateKey')
+// Full mode — authenticates via SIWE, provisions API key
+const client = await BasisClient.create({
+  privateKey: '0xYourPrivateKey',
+});
 
-# Claim daily USDB from faucet (signal-based, max 500/day)
-client.claim_faucet()
+// Claim daily USDB from faucet (signal-based, max 500/day)
+await client.claimFaucet();
 
-# Buy STASIS (ecosystem token)
-client.trading.buy(client.main_token_address, 100 * 10**18)
+// Buy STASIS (ecosystem token)
+await client.trading.buy(client.mainTokenAddress, parseUnits('100', 18));
 
-# Create a prediction market
-import time
-client.prediction_markets.create_market_with_metadata(
-    market_name='Will BTC hit 200k?',
-    symbol='BTC200K',
-    end_time=int(time.time()) + 7 * 24 * 60 * 60,
-    option_names=['Yes', 'No'],
-    maintoken=client.main_token_address,
-    seed_amount=50 * 10**18,
-    description='Prediction market on BTC price',
-    image_url='https://example.com/image.png',
-)
+// Create a prediction market
+await client.predictionMarkets.createMarketWithMetadata({
+  marketName: 'Will BTC hit 200k?',
+  symbol: 'BTC200K',
+  endTime: BigInt(Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60),
+  optionNames: ['Yes', 'No'],
+  maintoken: client.mainTokenAddress,
+  seedAmount: parseUnits('50', 18),
+  description: 'Prediction market on BTC price',
+  imageUrl: 'https://example.com/image.png',
+});
 
-# Check platform stats
-pulse = client.api.get_pulse()
-print(f"{pulse['stats']['tokens']} tokens, {pulse['stats']['predictionMarkets']} markets")
+// Check platform stats
+const pulse = await client.api.getPulse();
+console.log(`${pulse.stats.tokens} tokens, ${pulse.stats.predictionMarkets} markets`);
 ```
 
 ## Read-Only Mode
 
-```python
-# No private key — read-only access to all on-chain data
-client = BasisClient()
+```typescript
+// No private key — read-only access to all on-chain data
+const client = new BasisClient();
 
-price = client.trading.get_token_price(token_address)
-leaderboard = client.api.get_leaderboard()
+const price = await client.trading.getTokenPrice(tokenAddress);
+const leaderboard = await client.api.getLeaderboard();
 ```
 
 ## Modules
@@ -63,16 +65,16 @@ leaderboard = client.api.get_leaderboard()
 |--------|-------------|
 | `client.trading` | Buy/sell tokens, leverage, AMM swaps |
 | `client.factory` | Create tokens with metadata + IPFS images |
-| `client.prediction_markets` | Create markets, buy shares, redeem winnings |
-| `client.order_book` | P2P limit orders on prediction markets |
+| `client.predictionMarkets` | Create markets, buy shares, redeem winnings |
+| `client.orderBook` | P2P limit orders on prediction markets |
 | `client.loans` | Take/repay/extend hub loans |
 | `client.staking` | Wrap STASIS, lock, borrow against staked positions |
 | `client.vesting` | Gradual/cliff vesting schedules |
 | `client.resolver` | Propose/dispute/vote on market outcomes |
-| `client.private_markets` | Private prediction markets with voter panels |
+| `client.privateMarkets` | Private prediction markets with voter panels |
 | `client.taxes` | Surge tax management, dev revenue shares |
-| `client.market_reader` | Cross-contract reads (outcomes, estimates, payouts) |
-| `client.leverage_simulator` | Pure-math leverage simulations |
+| `client.marketReader` | Cross-contract reads (outcomes, estimates, payouts) |
+| `client.leverageSimulator` | Pure-math leverage simulations |
 | `client.agent` | ERC-8004 on-chain AI agent identity |
 | `client.api` | Off-chain API (tokens, trades, candles, social, profile) |
 
@@ -84,15 +86,16 @@ The `client.api` object provides 60+ methods for off-chain data:
 - **Sync**: universal transaction sync, order sync
 - **Events**: loan, vault, vesting, market resolution events
 - **Social**: Reef feed (posts, comments, voting), tweet verification, bug reports
+- **Moltbook**: account linking (challenge flow), post verification for points
 - **Profile**: leaderboard, public/private profile, referrals, stats, projects
 
 ## Key Features
 
-- **Gasless transactions** — all writes go through MegaFuel (0 gas), with automatic fallback to regular RPC when limits are hit
 - **Auto-approval** — token allowances are handled automatically before every transaction
 - **Auto-sync** — every write method syncs to the backend database via `POST /api/v1/sync`
 - **SIWE authentication** — `BasisClient.create()` handles the full wallet sign-in flow
-- **Bundled creation** — `create_token_with_metadata` and `create_market_with_metadata` force image + IPFS metadata upload (no orphaned tokens)
+- **Bundled creation** — `createTokenWithMetadata` and `createMarketWithMetadata` force image + IPFS metadata upload (no orphaned tokens)
+- **Dual format** — ESM and CJS builds with full TypeScript declarations
 
 ## Phase 1
 
