@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "basis-sdk"
+version = "0.1.0b1"
+description = "Basis DeFi SDK — trade, lend, stake, predict, and build on BNB Chain"
+authors = [
+  { name = "Basis Protocol" }
+]
+license = { text = "Elastic-2.0" }
+readme = "README.md"
+requires-python = ">=3.9"
+keywords = ["basis", "defi", "sdk", "bnb", "bsc", "prediction-markets", "trading", "lending", "staking", "ai-agents", "erc-8004", "web3"]
+dependencies = [
+    "web3>=6.0.0",
+    "requests>=2.28.0",
+    "eth-account>=0.8.0",
+    "Pillow>=9.0.0",
+]
+
+[project.urls]
+"Homepage" = "https://launchonbasis.com"
+"Repository" = "https://github.com/Launch-On-Basis/SDK-PY"
+
+[tool.setuptools]
+packages = ["basis", "basis.modules"]
+
+[tool.setuptools.package-data]
+basis = ["abis/*.json"]
