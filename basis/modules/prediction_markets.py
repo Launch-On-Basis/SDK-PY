@@ -66,7 +66,8 @@ class PredictionMarketsModule:
         end_time: int,
         option_names: list[str],
         maintoken: str,
-        image_url: str,
+        image_url: str = None,
+        image_file: str = None,
         description: str = None,
         website: str = None,
         telegram: str = None,
@@ -115,7 +116,12 @@ class PredictionMarketsModule:
             raise RuntimeError("Could not extract market address from creation logs.")
 
         # Upload image
-        uploaded_image_url = self.client.api.upload_image_from_url(image_url, contract_address=market_token_address)
+        if not image_url and not image_file:
+            raise ValueError('Either image_url or image_file is required.')
+        if image_file:
+            uploaded_image_url = self.client.api.upload_image(image_file, purpose='token', address=market_token_address)
+        else:
+            uploaded_image_url = self.client.api.upload_image_from_url(image_url, contract_address=market_token_address)
 
         # Create metadata
         metadata = self.client.api.update_metadata(
