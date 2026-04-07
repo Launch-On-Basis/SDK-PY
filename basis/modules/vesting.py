@@ -34,16 +34,20 @@ class VestingModule:
             return 0
 
     def _sync_tx(self, tx_hash: str):
-        """Sync tx to backend. Non-fatal on failure."""
-        try:
-            if not tx_hash.startswith("0x"):
-                tx_hash = "0x" + tx_hash
-            self.client.api.sync_transaction(tx_hash)
-        except Exception as e:
-            logger.warning("Sync warning: %s", e)
+        """Sync tx to backend. Raises on failure."""
+        if not tx_hash.startswith("0x"):
+            tx_hash = "0x" + tx_hash
+        self.client.api.sync_transaction(tx_hash)
 
     def create_gradual_vesting(self, beneficiary: str, token: str, total_amount: int, start_time: int, duration_in_days: int, time_unit: int, memo: str, ecosystem: str):
-        """Creates a gradual vesting. Auto-approves token and attaches fee."""
+        """Creates a gradual vesting. Auto-approves token and attaches fee.
+
+        Args:
+            total_amount: token amount in wei (18 decimals)
+            start_time: Unix timestamp in seconds
+            duration_in_days: integer, number of days
+            time_unit: enum: 0=Second, 1=Minute, 2=Hour, 3=Day
+        """
         self._approve_if_needed(token, self.vesting_address, total_amount)
         fee = self._get_fee_amount()
         func = self.contract.functions.createGradualVesting(
@@ -57,7 +61,12 @@ class VestingModule:
         return result
 
     def create_cliff_vesting(self, beneficiary: str, token: str, total_amount: int, unlock_time: int, memo: str, ecosystem: str):
-        """Creates a cliff vesting. Auto-approves token and attaches fee."""
+        """Creates a cliff vesting. Auto-approves token and attaches fee.
+
+        Args:
+            total_amount: token amount in wei (18 decimals)
+            unlock_time: Unix timestamp in seconds
+        """
         self._approve_if_needed(token, self.vesting_address, total_amount)
         fee = self._get_fee_amount()
         func = self.contract.functions.createCliffVesting(
@@ -104,7 +113,14 @@ class VestingModule:
         return self.contract.functions.getClaimableAmount(vesting_id).call()
 
     def batch_create_gradual_vesting(self, beneficiaries: list[str], token: str, total_amounts: list[int], user_memos: list[str], start_time: int, duration_in_days: int, time_unit: int, ecosystem: str):
-        """Creates gradual vestings for multiple beneficiaries. Auto-approves sum of amounts and attaches fee."""
+        """Creates gradual vestings for multiple beneficiaries. Auto-approves sum of amounts and attaches fee.
+
+        Args:
+            total_amounts: list of token amounts in wei (18 decimals)
+            start_time: Unix timestamp in seconds
+            duration_in_days: integer, number of days
+            time_unit: enum: 0=Second, 1=Minute, 2=Hour, 3=Day
+        """
         checksum_beneficiaries = [Web3.to_checksum_address(b) for b in beneficiaries]
         checksum_token = Web3.to_checksum_address(token)
         checksum_ecosystem = Web3.to_checksum_address(ecosystem)
@@ -120,7 +136,12 @@ class VestingModule:
         return result
 
     def batch_create_cliff_vesting(self, beneficiaries: list[str], token: str, total_amounts: list[int], unlock_time: int, user_memos: list[str], ecosystem: str):
-        """Creates cliff vestings for multiple beneficiaries. Auto-approves sum of amounts and attaches fee."""
+        """Creates cliff vestings for multiple beneficiaries. Auto-approves sum of amounts and attaches fee.
+
+        Args:
+            total_amounts: list of token amounts in wei (18 decimals)
+            unlock_time: Unix timestamp in seconds
+        """
         checksum_beneficiaries = [Web3.to_checksum_address(b) for b in beneficiaries]
         checksum_token = Web3.to_checksum_address(token)
         checksum_ecosystem = Web3.to_checksum_address(ecosystem)
@@ -143,14 +164,22 @@ class VestingModule:
         return result
 
     def extend_vesting_period(self, vesting_id: int, additional_days: int):
-        """Extends the vesting period by additional days."""
+        """Extends the vesting period by additional days.
+
+        Args:
+            additional_days: integer, number of days
+        """
         func = self.contract.functions.extendVestingPeriod(vesting_id, additional_days)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
 
     def add_tokens_to_vesting(self, vesting_id: int, additional_amount: int):
-        """Adds tokens to an existing vesting. Reads vesting details to get token, then approves."""
+        """Adds tokens to an existing vesting. Reads vesting details to get token, then approves.
+
+        Args:
+            additional_amount: token amount in wei (18 decimals)
+        """
         details = self.get_vesting_details(vesting_id)
         token = details[2]  # token address from vesting details (creator=0, beneficiary=1, token=2)
         self._approve_if_needed(token, self.vesting_address, additional_amount)

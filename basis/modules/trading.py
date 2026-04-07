@@ -16,13 +16,10 @@ class TradingModule:
         self.contract = self.client.web3.eth.contract(address=self.swap_address, abi=self.swap_abi)
 
     def _sync_tx(self, tx_hash: str):
-        """Sync tx to backend. Non-fatal on failure."""
-        try:
-            if not tx_hash.startswith("0x"):
-                tx_hash = "0x" + tx_hash
-            self.client.api.sync_transaction(tx_hash)
-        except Exception as e:
-            logger.warning("Sync warning: %s", e)
+        """Sync tx to backend. Raises on failure."""
+        if not tx_hash.startswith("0x"):
+            tx_hash = "0x" + tx_hash
+        self.client.api.sync_transaction(tx_hash)
 
     def _approve_if_needed(self, token_address: str, amount: int):
         if not self.client.account:
@@ -60,22 +57,50 @@ class TradingModule:
         return [target, main_token]
 
     def buy(self, token_address: str, usdb_amount: int, min_out: int = 0, wrap_tokens: bool = False):
-        """Simplified buy: purchases the target token using USDB. Builds path automatically."""
+        """Simplified buy: purchases the target token using USDB. Builds path automatically.
+
+        Args:
+            usdb_amount: USDB amount in wei (18 decimals)
+            min_out: minimum output in wei (18 decimals), 0 for no slippage protection
+        """
         path = self._build_buy_path(token_address)
         return self.buy_tokens(usdb_amount, min_out, path, wrap_tokens)
 
     def sell(self, token_address: str, amount: int, to_usdb: bool = False, min_out: int = 0, swap_to_eth: bool = False):
-        """Simplified sell: sells a token. Set to_usdb=True to swap factory tokens all the way to USDB."""
+        """Simplified sell: sells a token. Set to_usdb=True to swap factory tokens all the way to USDB.
+
+        Args:
+            amount: token amount in wei (18 decimals)
+            min_out: minimum output in wei (18 decimals), 0 for no slippage protection
+        """
         path = self._build_sell_path(token_address, to_usdb)
         return self.sell_tokens(amount, min_out, path, swap_to_eth)
 
     def buy_bonding_tokens(self, amount: int, min_out: int, path: list[str], wrap_tokens: bool):
+        """Buy bonding tokens.
+
+        Args:
+            amount: USDB amount in wei (18 decimals)
+            min_out: minimum output in wei (18 decimals)
+        """
         return self.buy_tokens(amount, min_out, path, wrap_tokens)
 
     def sell_bonding_tokens(self, amount: int, min_out: int, path: list[str], swap_to_eth: bool):
+        """Sell bonding tokens.
+
+        Args:
+            amount: token amount in wei (18 decimals)
+            min_out: minimum output in wei (18 decimals)
+        """
         return self.sell_tokens(amount, min_out, path, swap_to_eth)
 
     def buy_tokens(self, amount: int, min_out: int, path: list[str], wrap_tokens: bool):
+        """Buy tokens along a swap path.
+
+        Args:
+            amount: USDB amount in wei (18 decimals)
+            min_out: minimum output in wei (18 decimals)
+        """
         checksum_path = [Web3.to_checksum_address(p) for p in path]
         if checksum_path:
             self._approve_if_needed(checksum_path[0], amount)
@@ -86,6 +111,12 @@ class TradingModule:
         return result
 
     def sell_tokens(self, amount: int, min_out: int, path: list[str], swap_to_eth: bool):
+        """Sell tokens along a swap path.
+
+        Args:
+            amount: token amount in wei (18 decimals)
+            min_out: minimum output in wei (18 decimals)
+        """
         checksum_path = [Web3.to_checksum_address(p) for p in path]
         if checksum_path:
             self._approve_if_needed(checksum_path[0], amount)
@@ -108,7 +139,13 @@ class TradingModule:
         return str(price)
 
     def leverage_buy(self, amount: int, min_out: int, path: list[str], number_of_days: int):
-        """Leveraged buy: purchases tokens with leverage (creates a loan position)."""
+        """Leveraged buy: purchases tokens with leverage (creates a loan position).
+
+        Args:
+            amount: USDB amount in wei (18 decimals)
+            min_out: minimum output in wei (18 decimals)
+            number_of_days: integer, minimum 10
+        """
         checksum_path = [Web3.to_checksum_address(p) for p in path]
         if checksum_path:
             self._approve_if_needed(checksum_path[0], amount)
@@ -118,14 +155,24 @@ class TradingModule:
         return result
 
     def partial_loan_sell(self, loan_id: int, percentage: int, is_leverage: bool, min_out: int = 0):
-        """Partially sells collateral from a loan/leverage position. percentage must be divisible by 10 (10-100)."""
+        """Partially sells collateral from a loan/leverage position.
+
+        Args:
+            percentage: integer 10-100, divisible by 10
+            min_out: minimum output in wei (18 decimals)
+        """
         func = self.contract.functions.partialLoanSell(loan_id, percentage, is_leverage, min_out)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
 
     def sell_percentage(self, token_address: str, percentage: int, to_usdb: bool = False, min_out: int = 0, swap_to_eth: bool = False):
-        """Sells a percentage (1-100) of the user's token balance."""
+        """Sells a percentage of the user's token balance.
+
+        Args:
+            percentage: integer 1-100
+            min_out: minimum output in wei (18 decimals)
+        """
         if not self.client.account:
             raise ValueError("Stateful initialization (private_key) is required for write methods.")
         if percentage < 1 or percentage > 100:
@@ -163,6 +210,10 @@ class TradingModule:
         return contract.functions.leverages(checksum_user, loan_id).call()
 
     def get_amounts_out(self, amount: int, path: list[str]) -> int:
-        """Returns the estimated output amounts for a given input amount and swap path."""
+        """Returns the estimated output amounts for a given input amount and swap path.
+
+        Args:
+            amount: input amount in wei (18 decimals)
+        """
         checksum_path = [Web3.to_checksum_address(p) for p in path]
         return self.contract.functions.getAmountsOut(amount, checksum_path).call()

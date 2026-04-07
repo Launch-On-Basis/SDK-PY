@@ -20,14 +20,23 @@ class MarketReaderModule:
         return self.contract.functions.getAllOutcomes(checksum_router, checksum_market).call()
 
     def estimate_shares_out(self, router_address: str, market_token: str, outcome_id: int, usdb_amount: int, order_ids: list[int], user: str) -> int:
-        """Estimates the number of shares received for a given USDB input."""
+        """Estimates the number of shares received for a given USDB input.
+
+        Args:
+            usdb_amount: USDB amount in wei (18 decimals)
+        """
         checksum_router = Web3.to_checksum_address(router_address)
         checksum_market = Web3.to_checksum_address(market_token)
         checksum_user = Web3.to_checksum_address(user)
         return self.contract.functions.estimateSharesOut(checksum_router, checksum_market, outcome_id, usdb_amount, order_ids, checksum_user).call()
 
     def get_potential_payout(self, router_address: str, market_token: str, outcome_id: int, shares_amount: int, estimated_usdb_to_pool: int) -> tuple:
-        """Returns the potential payout for selling shares."""
+        """Returns the potential payout for selling shares.
+
+        Args:
+            shares_amount: shares in wei (18 decimals)
+            estimated_usdb_to_pool: USDB amount in wei (18 decimals)
+        """
         checksum_router = Web3.to_checksum_address(router_address)
         checksum_market = Web3.to_checksum_address(market_token)
         return self.contract.functions.getPotentialPayout(checksum_router, checksum_market, outcome_id, shares_amount, estimated_usdb_to_pool).call()

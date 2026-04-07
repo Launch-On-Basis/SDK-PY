@@ -60,7 +60,7 @@ class BasisClient:
         private_key: Optional[str] = None,
         api_key: Optional[str] = None,
         api_domain: str = "https://launchonbasis.com",
-        gasless: bool = True,
+        gasless: bool = True,  # If True, transactions try BSC Megafuel (zero gas) first, falling back to regular RPC
         factory_address: str = DEFAULT_ADDRESSES["factory"],
         swap_address: str = DEFAULT_ADDRESSES["swap"],
         market_trading_address: str = DEFAULT_ADDRESSES["marketTrading"],

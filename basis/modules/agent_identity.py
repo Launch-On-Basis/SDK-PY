@@ -26,6 +26,14 @@ IDENTITY_ABI = [
 ]
 
 
+class AgentSyncError(Exception):
+    """Raised when on-chain registration succeeded but backend sync failed."""
+    def __init__(self, message: str, tx_hash: str, agent_id: int):
+        super().__init__(message)
+        self.tx_hash = tx_hash
+        self.agent_id = agent_id
+
+
 class AgentIdentityModule:
     def __init__(self, client):
         self.client = client
@@ -35,13 +43,10 @@ class AgentIdentityModule:
         )
 
     def _sync_tx(self, tx_hash: str):
-        """Sync tx to backend. Non-fatal on failure."""
-        try:
-            if not tx_hash.startswith("0x"):
-                tx_hash = "0x" + tx_hash
-            self.client.api.sync_transaction(tx_hash)
-        except Exception as e:
-            logger.warning("Sync warning: %s", e)
+        """Sync tx to backend. Raises on failure."""
+        if not tx_hash.startswith("0x"):
+            tx_hash = "0x" + tx_hash
+        self.client.api.sync_transaction(tx_hash)
 
     def _build_metadata_uri(self, wallet: str, config: Optional[Dict[str, Any]] = None) -> str:
         """Build base64-encoded metadata URI for on-chain registration."""
@@ -67,6 +72,21 @@ class AgentIdentityModule:
         checksum = Web3.to_checksum_address(wallet)
         balance = self.contract.functions.balanceOf(checksum).call()
         return balance > 0
+
+    def get_agent_id_from_chain(self, wallet: str) -> Optional[int]:
+        """Look up the agentId for a wallet by scanning Registered events on-chain.
+        Returns the agentId or None if not found.
+        """
+        checksum = Web3.to_checksum_address(wallet)
+        registered_event = self.contract.events.Registered()
+        logs = registered_event.get_logs(
+            fromBlock=0,
+            argument_filters={"owner": checksum}
+        )
+        if not logs:
+            return None
+        # Return the most recent registration
+        return logs[-1]["args"]["agentId"]
 
     def register(self, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Register the current wallet as an ERC-8004 agent. Returns hash and agentId."""
@@ -95,6 +115,27 @@ class AgentIdentityModule:
 
         self._sync_tx(result['hash'])
         result["agentId"] = agent_id
+
+        # Force sync to backend API — retry up to 3 times
+        import time
+        sync_err = None
+        for attempt in range(3):
+            try:
+                self._sync_to_api(self.client.account.address, agent_id, config)
+                sync_err = None
+                break
+            except Exception as e:
+                sync_err = e
+                if attempt < 2:
+                    time.sleep(attempt + 1)
+        if sync_err:
+            raise AgentSyncError(
+                f"On-chain registration succeeded (agentId: {agent_id}, tx: {result['hash']}) "
+                f"but backend sync failed after 3 attempts: {sync_err}. Call register_and_sync() to retry.",
+                tx_hash=result['hash'],
+                agent_id=agent_id,
+            )
+
         return result
 
     def register_and_sync(self, config: Optional[Dict[str, Any]] = None) -> int:
@@ -108,23 +149,23 @@ class AgentIdentityModule:
 
         # Check if already registered
         if self.is_registered(address):
-            try:
-                api_agent = self.lookup_from_api(address)
-                if api_agent and api_agent.get("isAgent"):
-                    return api_agent["agent"]["agentId"]
-            except Exception:
-                pass
-            return 0
+            # Check if API already has it
+            api_agent = self.lookup_from_api(address)
+            if api_agent and api_agent.get("isAgent"):
+                return api_agent["agent"]["agentId"]
+            # On-chain but not in API — get real agentId from chain events, then force sync
+            chain_agent_id = self.get_agent_id_from_chain(address)
+            if chain_agent_id is None:
+                raise RuntimeError("Agent shows as registered (balanceOf > 0) but no Registered event found on-chain")
+            self._sync_to_api(address, chain_agent_id, config)
+            synced = self.lookup_from_api(address)
+            if synced and synced.get("isAgent"):
+                return synced["agent"]["agentId"]
+            raise RuntimeError("Agent registered on-chain but backend sync failed — API still shows isAgent: false")
 
-        # Register on-chain
+        # Register on-chain (register() already forces sync)
         result = self.register(config)
         agent_id = result["agentId"]
-
-        # Sync to API
-        try:
-            self._sync_to_api(address, agent_id, config)
-        except Exception as e:
-            logger.warning("Agent API sync warning: %s", e)
 
         return agent_id
 

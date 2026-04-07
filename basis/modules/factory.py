@@ -21,13 +21,10 @@ class FactoryModule:
         self.contract = self.client.web3.eth.contract(address=self.factory_address, abi=self.factory_abi)
 
     def _sync_tx(self, tx_hash: str):
-        """Sync tx to backend. Non-fatal on failure."""
-        try:
-            if not tx_hash.startswith("0x"):
-                tx_hash = "0x" + tx_hash
-            self.client.api.sync_transaction(tx_hash)
-        except Exception as e:
-            logger.warning("Sync warning: %s", e)
+        """Sync tx to backend. Raises on failure."""
+        if not tx_hash.startswith("0x"):
+            tx_hash = "0x" + tx_hash
+        self.client.api.sync_transaction(tx_hash)
 
     def _create_token(
         self,
@@ -61,8 +58,8 @@ class FactoryModule:
         name: str,
         hybrid_multiplier: int,
         start_lp: int,
+        image_url: str,
         description: str = None,
-        image_url: str = None,
         website: str = None,
         telegram: str = None,
         twitterx: str = None,
@@ -80,6 +77,12 @@ class FactoryModule:
         2. Parses the new token address from logs
         3. Downloads, resizes (512x512 WebP), and uploads the image to IPFS
         4. Creates metadata on IPFS
+
+        Args:
+            hybrid_multiplier: raw integer (not wei) -- controls floor price rise speed
+            start_lp: initial liquidity in wei (18 decimals)
+            usdb_for_bonding: USDB amount in wei (18 decimals)
+            auto_vest_duration: vesting duration in days (integer)
 
         Returns dict with hash, receipt, token_address, image_url, metadata.
         """
@@ -116,10 +119,8 @@ class FactoryModule:
         if not token_address:
             raise RuntimeError("Could not extract token address from creation logs.")
 
-        # 3. Upload image if provided
-        uploaded_image_url = None
-        if image_url:
-            uploaded_image_url = self.client.api.upload_image_from_url(image_url, contract_address=token_address)
+        # 3. Upload image
+        uploaded_image_url = self.client.api.upload_image_from_url(image_url, contract_address=token_address)
 
         # 4. Create metadata on IPFS
         metadata = self.client.api.update_metadata(
@@ -150,6 +151,11 @@ class FactoryModule:
         return result
 
     def set_whitelisted_wallet(self, token_address: str, wallets: list[str], amount: int, tag: str):
+        """Sets whitelisted wallets for a token.
+
+        Args:
+            amount: token amount in wei (18 decimals)
+        """
         checksum_addr = Web3.to_checksum_address(token_address)
         token_contract = self.client.web3.eth.contract(address=checksum_addr, abi=self.token_abi)
         checksum_wallets = [Web3.to_checksum_address(w) for w in wallets]

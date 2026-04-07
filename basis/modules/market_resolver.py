@@ -15,13 +15,10 @@ class MarketResolverModule:
         self.contract = self.client.web3.eth.contract(address=self.resolver_address, abi=self.resolver_abi)
 
     def _sync_tx(self, tx_hash: str):
-        """Sync tx to backend. Non-fatal on failure."""
-        try:
-            if not tx_hash.startswith("0x"):
-                tx_hash = "0x" + tx_hash
-            self.client.api.sync_transaction(tx_hash)
-        except Exception as e:
-            logger.warning("Sync warning: %s", e)
+        """Sync tx to backend. Raises on failure."""
+        if not tx_hash.startswith("0x"):
+            tx_hash = "0x" + tx_hash
+        self.client.api.sync_transaction(tx_hash)
 
     def _approve_if_needed(self, token_address: str, spender: str, amount: int):
         if not self.client.account:
@@ -121,7 +118,11 @@ class MarketResolverModule:
         return result
 
     def claim_early_bounty(self, market_token: str, round: int):
-        """Claims an early bounty for a specific dispute round."""
+        """Claims an early bounty for a specific dispute round.
+
+        Args:
+            round: dispute round number (integer)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         func = self.contract.functions.claimEarlyBounty(checksum_market, round)
         result = self.client.send_transaction(func)
@@ -163,18 +164,30 @@ class MarketResolverModule:
         return self.contract.functions.currentRound(checksum_market).call()
 
     def get_vote_count(self, market_token: str, round: int, outcome_id: int) -> int:
-        """Returns the vote count for a specific outcome in a dispute round."""
+        """Returns the vote count for a specific outcome in a dispute round.
+
+        Args:
+            round: dispute round number (integer)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         return self.contract.functions.nftVoteCount(checksum_market, round, outcome_id).call()
 
     def has_voted(self, market_token: str, round: int, voter: str) -> bool:
-        """Checks if a voter has voted in a specific dispute round."""
+        """Checks if a voter has voted in a specific dispute round.
+
+        Args:
+            round: dispute round number (integer)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         checksum_voter = Web3.to_checksum_address(voter)
         return self.contract.functions.nftHasVoted(checksum_market, round, checksum_voter).call()
 
     def get_voter_choice(self, market_token: str, round: int, voter: str) -> int:
-        """Returns the outcome a voter chose in a dispute round."""
+        """Returns the outcome a voter chose in a dispute round.
+
+        Args:
+            round: dispute round number (integer)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         checksum_voter = Web3.to_checksum_address(voter)
         return self.contract.functions.voterChoice(checksum_market, round, checksum_voter).call()

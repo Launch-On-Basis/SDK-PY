@@ -51,16 +51,19 @@ class TaxesModule:
     # ------------------------------------------------------------------
 
     def _sync_tx(self, tx_hash: str):
-        """Sync tx to backend. Non-fatal on failure."""
-        try:
-            if not tx_hash.startswith("0x"):
-                tx_hash = "0x" + tx_hash
-            self.client.api.sync_transaction(tx_hash)
-        except Exception as e:
-            logger.warning("Sync warning: %s", e)
+        """Sync tx to backend. Raises on failure."""
+        if not tx_hash.startswith("0x"):
+            tx_hash = "0x" + tx_hash
+        self.client.api.sync_transaction(tx_hash)
 
     def start_surge_tax(self, start_rate: int, end_rate: int, duration: int, token: str):
-        """Start a decaying surge tax on a factory token. Only callable by the token's DEV."""
+        """Start a decaying surge tax on a factory token. Only callable by the token's DEV.
+
+        Args:
+            start_rate: basis points (0-10000)
+            end_rate: basis points (0-10000)
+            duration: duration in seconds
+        """
         func = self.contract.functions.startSurgeTax(start_rate, end_rate, duration, Web3.to_checksum_address(token))
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
@@ -74,7 +77,11 @@ class TaxesModule:
         return result
 
     def add_dev_share(self, token: str, wallet: str, basis_points: int):
-        """Add a developer revenue share wallet. Only callable by the token's DEV."""
+        """Add a developer revenue share wallet. Only callable by the token's DEV.
+
+        Args:
+            basis_points: basis points (0-10000)
+        """
         func = self.contract.functions.addDevShare(
             Web3.to_checksum_address(token), Web3.to_checksum_address(wallet), basis_points
         )

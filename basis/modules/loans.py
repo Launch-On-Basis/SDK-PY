@@ -13,13 +13,10 @@ class LoansModule:
         self.contract = self.client.web3.eth.contract(address=self.loan_hub_address, abi=self.loan_hub_abi)
 
     def _sync_tx(self, tx_hash: str):
-        """Sync tx to backend. Non-fatal on failure."""
-        try:
-            if not tx_hash.startswith("0x"):
-                tx_hash = "0x" + tx_hash
-            self.client.api.sync_transaction(tx_hash)
-        except Exception as e:
-            logger.warning("Sync warning: %s", e)
+        """Sync tx to backend. Raises on failure."""
+        if not tx_hash.startswith("0x"):
+            tx_hash = "0x" + tx_hash
+        self.client.api.sync_transaction(tx_hash)
 
     def _approve_if_needed(self, token_address: str, spender: str, amount: int):
         if not self.client.account:
@@ -36,7 +33,12 @@ class LoansModule:
             self.client.send_transaction(func)
 
     def take_loan(self, ecosystem: str, collateral: str, amount: int, days_count: int):
-        """Takes a loan. Auto-approves the collateral token to the LoanHub."""
+        """Takes a loan. Auto-approves the collateral token to the LoanHub.
+
+        Args:
+            amount: collateral amount in wei (18 decimals)
+            days_count: integer, minimum 10
+        """
         checksum_ecosystem = Web3.to_checksum_address(ecosystem)
         checksum_collateral = Web3.to_checksum_address(collateral)
         self._approve_if_needed(collateral, self.loan_hub_address, amount)
@@ -62,7 +64,11 @@ class LoansModule:
         return result
 
     def extend_loan(self, hub_id: int, add_days: int, pay_in_stable: bool, refinance: bool):
-        """Extends a loan. When pay_in_stable is True, auto-approves USDB to the LoanHub."""
+        """Extends a loan. When pay_in_stable is True, auto-approves USDB to the LoanHub.
+
+        Args:
+            add_days: integer, minimum 10
+        """
         if pay_in_stable and self.client.account:
             erc20_abi = load_abi('IERC20.json')
             usdb = self.client.web3.eth.contract(
@@ -87,7 +93,11 @@ class LoansModule:
         return self.contract.functions.getUserLoanDetails(checksum_user, hub_id).call()
 
     def increase_loan(self, hub_id: int, amount_to_add: int):
-        """Increases collateral on an existing loan. Auto-approves the collateral token."""
+        """Increases collateral on an existing loan. Auto-approves the collateral token.
+
+        Args:
+            amount_to_add: additional collateral in wei (18 decimals)
+        """
         loan_details = self.get_user_loan_details(self.client.account.address, hub_id)
         collateral = loan_details[3]  # collateralToken at index 3 in FullLoanDetails struct
         self._approve_if_needed(collateral, self.loan_hub_address, amount_to_add)
@@ -97,7 +107,12 @@ class LoansModule:
         return result
 
     def hub_partial_loan_sell(self, hub_id: int, percentage: int, is_leverage: bool, min_out: int = 0):
-        """Partially sell collateral from a hub loan position."""
+        """Partially sell collateral from a hub loan position.
+
+        Args:
+            percentage: integer 10-100, divisible by 10
+            min_out: minimum output in wei (18 decimals)
+        """
         func = self.contract.functions.hubPartialLoanSell(hub_id, percentage, is_leverage, min_out)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])

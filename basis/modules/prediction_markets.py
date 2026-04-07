@@ -14,13 +14,10 @@ class PredictionMarketsModule:
         self.contract = self.client.web3.eth.contract(address=self.market_trading_address, abi=self.market_trading_abi)
 
     def _sync_tx(self, tx_hash: str):
-        """Sync tx to backend. Non-fatal on failure."""
-        try:
-            if not tx_hash.startswith("0x"):
-                tx_hash = "0x" + tx_hash
-            self.client.api.sync_transaction(tx_hash)
-        except Exception as e:
-            logger.warning("Sync warning: %s", e)
+        """Sync tx to backend. Raises on failure."""
+        if not tx_hash.startswith("0x"):
+            tx_hash = "0x" + tx_hash
+        self.client.api.sync_transaction(tx_hash)
 
     def _approve_if_needed(self, token_address: str, amount: int):
         if not self.client.account:
@@ -38,7 +35,13 @@ class PredictionMarketsModule:
             self.client.send_transaction(func)
 
     def _create_market(self, market_name: str, symbol: str, end_time: int, option_names: list[str], maintoken: str, frozen: bool, bonding: int, seed_amount: int = 0):
-        """Internal: creates a market on-chain. Use create_market_with_metadata(). Auto-fetches and attaches the creation fee."""
+        """Internal: creates a market on-chain. Use create_market_with_metadata(). Auto-fetches and attaches the creation fee.
+
+        Args:
+            end_time: Unix timestamp in seconds
+            bonding: USDB amount in wei (18 decimals)
+            seed_amount: USDB amount in wei (18 decimals)
+        """
         checksum_maintoken = Web3.to_checksum_address(maintoken)
         # Read ecosystem's factory address, then fetch fee
         eco_data = self.contract.functions.ecosystems(checksum_maintoken).call()
@@ -63,8 +66,8 @@ class PredictionMarketsModule:
         end_time: int,
         option_names: list[str],
         maintoken: str,
+        image_url: str,
         description: str = None,
-        image_url: str = None,
         website: str = None,
         telegram: str = None,
         twitterx: str = None,
@@ -76,6 +79,11 @@ class PredictionMarketsModule:
 
         Requires SIWE authentication.
         Returns dict with hash, receipt, market_token_address, image_url, metadata.
+
+        Args:
+            end_time: Unix timestamp in seconds
+            bonding: USDB amount in wei (18 decimals)
+            seed_amount: USDB amount in wei (18 decimals)
         """
         create_result = self._create_market(
             market_name, symbol, end_time, option_names,
@@ -106,10 +114,8 @@ class PredictionMarketsModule:
         if not market_token_address:
             raise RuntimeError("Could not extract market address from creation logs.")
 
-        # Upload image if provided
-        uploaded_image_url = None
-        if image_url:
-            uploaded_image_url = self.client.api.upload_image_from_url(image_url, contract_address=market_token_address)
+        # Upload image
+        uploaded_image_url = self.client.api.upload_image_from_url(image_url, contract_address=market_token_address)
 
         # Create metadata
         metadata = self.client.api.update_metadata(
@@ -132,6 +138,13 @@ class PredictionMarketsModule:
         return result
 
     def buy(self, market_token: str, outcome_id: int, input_token: str, input_amount: int, min_usdb: int, min_shares: int):
+        """Buys shares in a prediction market outcome. Auto-approves input token.
+
+        Args:
+            input_amount: input token amount in wei (18 decimals)
+            min_usdb: minimum USDB in wei (18 decimals)
+            min_shares: minimum shares in wei (18 decimals)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         checksum_input = Web3.to_checksum_address(input_token)
         
@@ -143,6 +156,7 @@ class PredictionMarketsModule:
         return result
 
     def redeem(self, market_token: str):
+        """Redeems shares from a resolved market."""
         checksum_market = Web3.to_checksum_address(market_token)
         func = self.contract.functions.redeem(checksum_market)
         result = self.client.send_transaction(func)
@@ -150,20 +164,28 @@ class PredictionMarketsModule:
         return result
 
     def get_market_data(self, market_token: str):
+        """Returns market data for a prediction market."""
         checksum_market = Web3.to_checksum_address(market_token)
         return self.contract.functions.getMarketData(checksum_market).call()
 
     def get_outcome(self, market_token: str, outcome_id: int):
+        """Returns outcome data for a specific outcome."""
         checksum_market = Web3.to_checksum_address(market_token)
         return self.contract.functions.getOutcome(checksum_market, outcome_id).call()
 
     def get_user_shares(self, market_token: str, user: str, outcome_id: int):
+        """Returns a user's shares for a specific outcome."""
         checksum_market = Web3.to_checksum_address(market_token)
         checksum_user = Web3.to_checksum_address(user)
         return self.contract.functions.getUserShares(checksum_market, checksum_user, outcome_id).call()
 
     def buy_orders_and_contract(self, market_token: str, outcome_id: int, order_ids: list[int], input_token: str, total_input: int, min_shares: int):
-        """Buys from order book and AMM in a single transaction. Auto-approves input token."""
+        """Buys from order book and AMM in a single transaction. Auto-approves input token.
+
+        Args:
+            total_input: input token amount in wei (18 decimals)
+            min_shares: minimum shares in wei (18 decimals)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         checksum_input = Web3.to_checksum_address(input_token)
         self._approve_if_needed(checksum_input, total_input)
@@ -171,10 +193,7 @@ class PredictionMarketsModule:
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         # Also sync order fills since this method fills P2P orders
-        try:
-            self.client.api.sync_order(result['hash'], 'public')
-        except Exception:
-            pass
+        self.client.api.sync_order(result['hash'], 'public')
         return result
 
     def get_initial_reserves(self, num_outcomes: int) -> tuple:
@@ -182,23 +201,33 @@ class PredictionMarketsModule:
         return self.contract.functions.getInitialReserves(num_outcomes).call()
 
     def get_num_outcomes(self, market_token: str) -> int:
+        """Returns the number of outcomes for a market."""
         return self.contract.functions.getNumOutcomes(Web3.to_checksum_address(market_token)).call()
 
     def get_option_names(self, market_token: str) -> list:
+        """Returns the option names for a market."""
         return self.contract.functions.getOptionNames(Web3.to_checksum_address(market_token)).call()
 
     def has_betted_on_market(self, market_token: str, user: str) -> bool:
+        """Returns whether a user has bet on a market."""
         return self.contract.functions.hasBettedOnMarket(
             Web3.to_checksum_address(market_token), Web3.to_checksum_address(user)
         ).call()
 
     def get_bounty_pool(self, market_token: str) -> int:
+        """Returns the bounty pool amount for a market."""
         return self.contract.functions.getBountyPool(Web3.to_checksum_address(market_token)).call()
 
     def get_general_pot(self, market_token: str) -> int:
+        """Returns the general pot amount for a market."""
         return self.contract.functions.getGeneralPot(Web3.to_checksum_address(market_token)).call()
 
     def get_buy_order_amounts_out(self, market_token: str, order_id: int, usdb_amount: int):
+        """Returns the amounts out when buying an order with a specific USDB amount.
+
+        Args:
+            usdb_amount: USDB amount in wei (18 decimals)
+        """
         return self.contract.functions.getBuyOrderAmountsOut(
             Web3.to_checksum_address(market_token), order_id, usdb_amount
         ).call()

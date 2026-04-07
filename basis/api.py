@@ -135,20 +135,35 @@ class BasisAPI:
     # Image upload (session required)
     # ------------------------------------------------------------------
 
-    def upload_image(self, file_path: str) -> str:
+    def upload_image(
+        self, file_path: str, purpose: str = "token", address: Optional[str] = None
+    ) -> str:
         """Upload an image file and return the hosted URL.
 
         ``POST /api/images`` (multipart/form-data)
 
         Allowed formats: jpeg, png, webp, gif. Max 5 MB.
+
+        Args:
+            purpose: "token" (requires address) or "avatar"
+            address: token/market contract address (required when purpose is "token")
         """
+        if purpose == "token" and not address:
+            raise ValueError('address is required when purpose is "token"')
         import mimetypes
         mime_type = mimetypes.guess_type(file_path)[0] or "image/png"
+        data = {"purpose": purpose}
+        if purpose == "token":
+            data["address"] = address
         with open(file_path, "rb") as f:
             files = {"file": (os.path.basename(file_path), f, mime_type)}
-            return self._session_request("POST", "/images", files=files)
+            result = self._session_request("POST", "/images", files=files, data=data)
+        return result["url"]
 
-    def upload_image_from_url(self, image_url: str, contract_address: Optional[str] = None) -> str:
+    def upload_image_from_url(
+        self, image_url: str, contract_address: Optional[str] = None,
+        purpose: str = "token",
+    ) -> str:
         """Download an image from a URL, resize to 512x512 center-crop,
         convert to WebP, and upload to IPFS via /api/images.
 
@@ -180,7 +195,11 @@ class BasisAPI:
         import time
         filename = f"{contract_address}.webp" if contract_address else f"image_{int(time.time())}.webp"
         files = {"file": (filename, buf, "image/webp")}
-        return self._session_request("POST", "/images", files=files)
+        data = {"purpose": purpose}
+        if purpose == "token" and contract_address:
+            data["address"] = contract_address
+        result = self._session_request("POST", "/images", files=files, data=data)
+        return result["url"]
 
     # ------------------------------------------------------------------
     # Metadata (session required, must be creator)
@@ -305,6 +324,7 @@ class BasisAPI:
         self,
         search: Optional[str] = None,
         is_prediction: Optional[bool] = None,
+        dev: Optional[str] = None,
         sort: str = "newest",
         page: int = 1,
         limit: int = 20,
@@ -312,12 +332,17 @@ class BasisAPI:
         """List tokens.
 
         ``GET /api/v1/tokens``
+
+        Args:
+            dev: filter by creator wallet address
         """
         params: Dict[str, Any] = {"sort": sort, "page": page, "limit": limit}
         if search is not None:
             params["search"] = search
         if is_prediction is not None:
             params["isPrediction"] = str(is_prediction).lower()
+        if dev is not None:
+            params["dev"] = dev
         return self._api_key_request("GET", "/v1/tokens", params=params)
 
     def get_token(self, address: str) -> Dict[str, Any]:
@@ -1004,9 +1029,33 @@ class BasisAPI:
         ``POST /api/v1/me/profile``
 
         Each request performs one action based on which key is present
-        in the payload.
+        in the payload:
+
+        - ``{"username": "name"}`` — set username
+        - ``{"username": None}`` — clear username
+        - ``{"social": {"platform": "x", "handle": "..."}}`` — link social
+        - ``{"removeSocial": "discord"}`` — unlink social
+        - ``{"toggleSocialPublic": "x"}`` — flip social visibility
+        - ``{"avatar": "https://..."}`` — set avatar (must be HTTPS URL)
+        - ``{"avatar": None}`` — clear avatar
         """
         return self._auth_request("POST", "/v1/me/profile", json=payload)
+
+    def set_avatar(self, source: str) -> str:
+        """Upload an avatar image and set it on the profile in one call.
+
+        Accepts a URL (http/https) to download and resize to 512x512 WebP,
+        or a local file path to upload directly. Returns the hosted avatar URL.
+
+        Args:
+            source: image URL (``https://...``) or local file path (``./photo.png``).
+        """
+        if source.startswith("http://") or source.startswith("https://"):
+            url = self.upload_image_from_url(source, purpose="avatar")
+        else:
+            url = self.upload_image(source, purpose="avatar")
+        self.update_my_profile({"avatar": url})
+        return url
 
     def get_my_referrals(self) -> Dict[str, Any]:
         """Referral overview for the authenticated user.

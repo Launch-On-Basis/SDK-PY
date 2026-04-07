@@ -29,29 +29,29 @@ class PrivateMarketsModule:
             self.client.send_transaction(func)
 
     def _sync_tx(self, tx_hash: str):
-        """Sync tx to backend. Non-fatal on failure."""
-        try:
-            if not tx_hash.startswith("0x"):
-                tx_hash = "0x" + tx_hash
-            self.client.api.sync_transaction(tx_hash)
-        except Exception as e:
-            logger.warning("Sync warning: %s", e)
+        """Sync tx to backend. Raises on failure."""
+        if not tx_hash.startswith("0x"):
+            tx_hash = "0x" + tx_hash
+        self.client.api.sync_transaction(tx_hash)
 
     def _sync_order(self, tx_hash: str):
-        """Sync order tx to backend. Non-fatal on failure."""
-        try:
-            if not tx_hash.startswith("0x"):
-                tx_hash = "0x" + tx_hash
-            self.client.api.sync_order(tx_hash, 'private')
-        except Exception as e:
-            logger.warning("Order sync warning: %s", e)
+        """Sync order tx to backend. Raises on failure."""
+        if not tx_hash.startswith("0x"):
+            tx_hash = "0x" + tx_hash
+        self.client.api.sync_order(tx_hash, 'private')
 
     # ------------------------------------------------------------------
     # Write methods
     # ------------------------------------------------------------------
 
     def _create_market(self, market_name: str, symbol: str, end_time: int, option_names: list[str], maintoken: str, private_event: bool, frozen: bool, bonding: int, seed_amount: int = 0):
-        """Internal: creates a private market on-chain. Use create_market_with_metadata() instead."""
+        """Internal: creates a private market on-chain. Use create_market_with_metadata() instead.
+
+        Args:
+            end_time: Unix timestamp in seconds
+            bonding: USDB amount in wei (18 decimals)
+            seed_amount: USDB amount in wei (18 decimals)
+        """
         checksum_maintoken = Web3.to_checksum_address(maintoken)
         eco_data = self.contract.functions.ecosystems(checksum_maintoken).call()
         factory_address = eco_data[0]
@@ -69,14 +69,20 @@ class PrivateMarketsModule:
         return result
 
     def create_market_with_metadata(self, market_name: str, symbol: str, end_time: int,
-                                     option_names: list, maintoken: str, private_event: bool = True,
+                                     option_names: list, maintoken: str, image_url: str,
+                                     private_event: bool = True,
                                      frozen: bool = False, bonding: int = 0, seed_amount: int = 0,
-                                     description: str = None, image_url: str = None,
+                                     description: str = None,
                                      website: str = None, telegram: str = None, twitterx: str = None):
         """Creates a private market and registers its metadata on IPFS in one call.
 
         Requires SIWE authentication.
         Returns dict with hash, receipt, market_token_address, image_url, metadata.
+
+        Args:
+            end_time: Unix timestamp in seconds
+            bonding: USDB amount in wei (18 decimals)
+            seed_amount: USDB amount in wei (18 decimals)
         """
         create_result = self._create_market(
             market_name=market_name, symbol=symbol, end_time=end_time,
@@ -108,10 +114,8 @@ class PrivateMarketsModule:
         if not market_token_address:
             raise RuntimeError("Could not extract market address from creation logs.")
 
-        # Upload image if provided
-        uploaded_image_url = None
-        if image_url:
-            uploaded_image_url = self.client.api.upload_image_from_url(image_url, contract_address=market_token_address)
+        # Upload image
+        uploaded_image_url = self.client.api.upload_image_from_url(image_url, contract_address=market_token_address)
 
         # Create metadata on IPFS
         metadata = self.client.api.update_metadata(
@@ -123,6 +127,8 @@ class PrivateMarketsModule:
             twitterx=twitterx,
         )
 
+        self._sync_tx(create_result['hash'])
+
         return {
             'hash': create_result['hash'],
             'receipt': create_result['receipt'],
@@ -132,7 +138,13 @@ class PrivateMarketsModule:
         }
 
     def buy(self, market_token: str, outcome_id: int, input_token: str, input_amount: int, min_usdb: int, min_shares: int):
-        """Buys shares in a private market outcome. Auto-approves input token."""
+        """Buys shares in a private market outcome. Auto-approves input token.
+
+        Args:
+            input_amount: input token amount in wei (18 decimals)
+            min_usdb: minimum USDB in wei (18 decimals)
+            min_shares: minimum shares in wei (18 decimals)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         checksum_input = Web3.to_checksum_address(input_token)
         self._approve_if_needed(checksum_input, input_amount)
@@ -150,7 +162,12 @@ class PrivateMarketsModule:
         return result
 
     def list_order(self, market_token: str, outcome_id: int, amount: int, price_per_share: int):
-        """Lists a sell order on the private market order book."""
+        """Lists a sell order on the private market order book.
+
+        Args:
+            amount: shares in wei (18 decimals)
+            price_per_share: USDB per share in wei (18 decimals)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         func = self.contract.functions.listOrder(checksum_market, outcome_id, amount, price_per_share)
         result = self.client.send_transaction(func)
@@ -166,7 +183,11 @@ class PrivateMarketsModule:
         return result
 
     def buy_order(self, market_token: str, order_id: int, fill: int):
-        """Buys from an existing order on the private market. Auto-approves USDB."""
+        """Buys from an existing order on the private market. Auto-approves USDB.
+
+        Args:
+            fill: shares to fill in wei (18 decimals)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         # Auto-approve USDB for the order cost
         cost = self.get_buy_order_cost(market_token, order_id, fill)
@@ -178,7 +199,11 @@ class PrivateMarketsModule:
         return result
 
     def buy_multiple_orders(self, market_token: str, order_ids: list[int], usdb_amount: int):
-        """Buys from multiple orders on the private market. Auto-approves USDB."""
+        """Buys from multiple orders on the private market. Auto-approves USDB.
+
+        Args:
+            usdb_amount: USDB amount in wei (18 decimals)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         # Auto-approve USDB for the total input amount
         self._approve_if_needed(self.client.usdb_address, usdb_amount)
@@ -188,13 +213,19 @@ class PrivateMarketsModule:
         return result
 
     def buy_orders_and_contract(self, market_token: str, outcome_id: int, order_ids: list[int], input_token: str, total_input: int, min_shares: int):
-        """Buys from order book and AMM in a single transaction. Auto-approves input token."""
+        """Buys from order book and AMM in a single transaction. Auto-approves input token.
+
+        Args:
+            total_input: input token amount in wei (18 decimals)
+            min_shares: minimum shares in wei (18 decimals)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         checksum_input = Web3.to_checksum_address(input_token)
         self._approve_if_needed(checksum_input, total_input)
         func = self.contract.functions.buyOrdersAndContract(checksum_market, outcome_id, order_ids, checksum_input, total_input, min_shares)
         result = self.client.send_transaction(func)
         self._sync_order(result['hash'])
+        self._sync_tx(result['hash'])
         return result
 
     def vote(self, market_token: str, outcome_id: int):
@@ -248,7 +279,11 @@ class PrivateMarketsModule:
         return result
 
     def manage_whitelist(self, market_token: str, wallets: list[str], amount: int, tag: str, status: bool):
-        """Manages the whitelist for a private market."""
+        """Manages the whitelist for a private market.
+
+        Args:
+            amount: token amount in wei (18 decimals)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         checksum_wallets = [Web3.to_checksum_address(w) for w in wallets]
         func = self.contract.functions.manageWhitelist(checksum_market, checksum_wallets, amount, tag, status)
@@ -277,7 +312,11 @@ class PrivateMarketsModule:
         return self.contract.functions.userShares(checksum_market, checksum_user, outcome_id).call()
 
     def get_buy_order_cost(self, market_token: str, order_id: int, fill: int):
-        """Returns the cost to buy a specific order fill amount."""
+        """Returns the cost to buy a specific order fill amount.
+
+        Args:
+            fill: shares to fill in wei (18 decimals)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         return self.contract.functions.getBuyOrderCost(checksum_market, order_id, fill).call()
 
@@ -302,7 +341,11 @@ class PrivateMarketsModule:
         return self.contract.functions.bountyPool(checksum_market).call()
 
     def get_buy_order_amounts_out(self, market_token: str, order_id: int, usdb_amount: int):
-        """Returns the amounts out when buying an order with a specific USDB amount."""
+        """Returns the amounts out when buying an order with a specific USDB amount.
+
+        Args:
+            usdb_amount: USDB amount in wei (18 decimals)
+        """
         checksum_market = Web3.to_checksum_address(market_token)
         return self.contract.functions.getBuyOrderAmountsOut(checksum_market, order_id, usdb_amount).call()
 
