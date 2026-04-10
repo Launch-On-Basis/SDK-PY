@@ -11,7 +11,7 @@ class OrderBookModule:
         self.market_trading_address = Web3.to_checksum_address(market_trading_address)
         self.market_trading_abi = load_abi('AMarketTrading.json')
         self.erc20_abi = load_abi('IERC20.json')
-        self.contract = self.client.web3.eth.contract(address=self.market_trading_address, abi=self.market_trading_abi)
+        self._contract = self.client.web3.eth.contract(address=self.market_trading_address, abi=self.market_trading_abi)
 
     def _approve_usdb_if_needed(self, amount: int):
         if not self.client.account:
@@ -39,7 +39,7 @@ class OrderBookModule:
             price_per_share: USDB per share in wei (18 decimals)
         """
         checksum_market = Web3.to_checksum_address(market_token)
-        func = self.contract.functions.listOrder(checksum_market, outcome_id, amount, price_per_share)
+        func = self._contract.functions.listOrder(checksum_market, outcome_id, amount, price_per_share)
         result = self.client.send_transaction(func)
         self._sync_order(result['hash'])
         return result
@@ -47,7 +47,7 @@ class OrderBookModule:
     def cancel_order(self, market_token: str, order_id: int):
         """Cancels an existing order on the order book."""
         checksum_market = Web3.to_checksum_address(market_token)
-        func = self.contract.functions.cancelOrder(checksum_market, order_id)
+        func = self._contract.functions.cancelOrder(checksum_market, order_id)
         result = self.client.send_transaction(func)
         self._sync_order(result['hash'])
         return result
@@ -63,7 +63,7 @@ class OrderBookModule:
         cost = self.get_buy_order_cost(checksum_market, order_id, fill)
         total_cost = cost[2]  # totalCostToBuyer at index 2
         self._approve_usdb_if_needed(int(total_cost))
-        func = self.contract.functions.buyOrder(checksum_market, order_id, fill)
+        func = self._contract.functions.buyOrder(checksum_market, order_id, fill)
         result = self.client.send_transaction(func)
         self._sync_order(result['hash'])
         return result
@@ -77,7 +77,7 @@ class OrderBookModule:
         checksum_market = Web3.to_checksum_address(market_token)
         # Auto-approve USDB for the total input amount
         self._approve_usdb_if_needed(usdb_amount)
-        func = self.contract.functions.buyMultipleOrders(checksum_market, order_ids, usdb_amount)
+        func = self._contract.functions.buyMultipleOrders(checksum_market, order_ids, usdb_amount)
         result = self.client.send_transaction(func)
         self._sync_order(result['hash'])
         return result
@@ -89,7 +89,7 @@ class OrderBookModule:
             fill: shares to fill in wei (18 decimals)
         """
         checksum_market = Web3.to_checksum_address(market_token)
-        return self.contract.functions.getBuyOrderCost(checksum_market, order_id, fill).call()
+        return self._contract.functions.getBuyOrderCost(checksum_market, order_id, fill).call()
 
     def get_buy_order_amounts_out(self, market_token: str, order_id: int, usdb_amount: int):
         """Preview how many shares can be bought for a given USDB amount on a P2P order.
@@ -98,4 +98,4 @@ class OrderBookModule:
             usdb_amount: USDB amount in wei (18 decimals)
         """
         checksum_market = Web3.to_checksum_address(market_token)
-        return self.contract.functions.getBuyOrderAmountsOut(checksum_market, order_id, usdb_amount).call()
+        return self._contract.functions.getBuyOrderAmountsOut(checksum_market, order_id, usdb_amount).call()

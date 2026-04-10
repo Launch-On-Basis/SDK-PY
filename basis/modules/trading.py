@@ -13,7 +13,7 @@ class TradingModule:
         self.erc20_abi = load_abi('IERC20.json')
         self.token_abi = load_abi('FACTORYTOKEN.json')
         self.maintoken_abi = load_abi('MAINTOKEN.json')
-        self.contract = self.client.web3.eth.contract(address=self.swap_address, abi=self.swap_abi)
+        self._contract = self.client.web3.eth.contract(address=self.swap_address, abi=self.swap_abi)
 
     def _sync_tx(self, tx_hash: str):
         """Sync tx to backend. Raises on failure."""
@@ -105,7 +105,7 @@ class TradingModule:
         if checksum_path:
             self._approve_if_needed(checksum_path[0], amount)
             
-        func = self.contract.functions.buyTokens(amount, min_out, checksum_path, wrap_tokens)
+        func = self._contract.functions.buyTokens(amount, min_out, checksum_path, wrap_tokens)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -121,7 +121,7 @@ class TradingModule:
         if checksum_path:
             self._approve_if_needed(checksum_path[0], amount)
             
-        func = self.contract.functions.sellTokens(amount, min_out, checksum_path, swap_to_eth)
+        func = self._contract.functions.sellTokens(amount, min_out, checksum_path, swap_to_eth)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -149,7 +149,7 @@ class TradingModule:
         checksum_path = [Web3.to_checksum_address(p) for p in path]
         if checksum_path:
             self._approve_if_needed(checksum_path[0], amount)
-        func = self.contract.functions.leverageBuy(amount, min_out, checksum_path, number_of_days)
+        func = self._contract.functions.leverageBuy(amount, min_out, checksum_path, number_of_days)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -161,7 +161,7 @@ class TradingModule:
             percentage: integer 10-100, divisible by 10
             min_out: minimum output in wei (18 decimals)
         """
-        func = self.contract.functions.partialLoanSell(loan_id, percentage, is_leverage, min_out)
+        func = self._contract.functions.partialLoanSell(loan_id, percentage, is_leverage, min_out)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -216,4 +216,4 @@ class TradingModule:
             amount: input amount in wei (18 decimals)
         """
         checksum_path = [Web3.to_checksum_address(p) for p in path]
-        return self.contract.functions.getAmountsOut(amount, checksum_path).call()
+        return self._contract.functions.getAmountsOut(amount, checksum_path).call()

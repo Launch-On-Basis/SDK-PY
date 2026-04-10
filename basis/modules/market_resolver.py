@@ -12,7 +12,7 @@ class MarketResolverModule:
         self.resolver_address = Web3.to_checksum_address(resolver_address)
         self.resolver_abi = load_abi('AMarketResolver.json')
         self.erc20_abi = load_abi('IERC20.json')
-        self.contract = self.client.web3.eth.contract(address=self.resolver_address, abi=self.resolver_abi)
+        self._contract = self.client.web3.eth.contract(address=self.resolver_address, abi=self.resolver_abi)
 
     def _sync_tx(self, tx_hash: str):
         """Sync tx to backend. Raises on failure."""
@@ -40,9 +40,9 @@ class MarketResolverModule:
     def propose_outcome(self, market_token: str, outcome_id: int):
         """Proposes an outcome for a market. Auto-approves USDB for the proposal bond."""
         checksum_market = Web3.to_checksum_address(market_token)
-        proposal_bond = self.contract.functions.PROPOSAL_BOND().call()
+        proposal_bond = self._contract.functions.PROPOSAL_BOND().call()
         self._approve_if_needed(self.client.usdb_address, self.resolver_address, proposal_bond)
-        func = self.contract.functions.proposeOutcome(checksum_market, outcome_id)
+        func = self._contract.functions.proposeOutcome(checksum_market, outcome_id)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -50,9 +50,9 @@ class MarketResolverModule:
     def dispute(self, market_token: str, new_outcome_id: int):
         """Disputes a proposed outcome. Auto-approves USDB for the proposal bond."""
         checksum_market = Web3.to_checksum_address(market_token)
-        proposal_bond = self.contract.functions.PROPOSAL_BOND().call()
+        proposal_bond = self._contract.functions.PROPOSAL_BOND().call()
         self._approve_if_needed(self.client.usdb_address, self.resolver_address, proposal_bond)
-        func = self.contract.functions.dispute(checksum_market, new_outcome_id)
+        func = self._contract.functions.dispute(checksum_market, new_outcome_id)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -60,7 +60,7 @@ class MarketResolverModule:
     def vote(self, market_token: str, outcome_id: int):
         """Votes for an outcome during a dispute round."""
         checksum_market = Web3.to_checksum_address(market_token)
-        func = self.contract.functions.vote(checksum_market, outcome_id)
+        func = self._contract.functions.vote(checksum_market, outcome_id)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -68,9 +68,9 @@ class MarketResolverModule:
     def stake(self, token: str):
         """Stakes a token to become a voter. Auto-approves the minimum stake amount."""
         checksum_token = Web3.to_checksum_address(token)
-        min_stake = self.contract.functions.MIN_STAKE_AMOUNT().call()
+        min_stake = self._contract.functions.MIN_STAKE_AMOUNT().call()
         self._approve_if_needed(checksum_token, self.resolver_address, min_stake)
-        func = self.contract.functions.stake(checksum_token)
+        func = self._contract.functions.stake(checksum_token)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -78,7 +78,7 @@ class MarketResolverModule:
     def unstake(self, token: str):
         """Unstakes a token."""
         checksum_token = Web3.to_checksum_address(token)
-        func = self.contract.functions.unstake(checksum_token)
+        func = self._contract.functions.unstake(checksum_token)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -86,7 +86,7 @@ class MarketResolverModule:
     def finalize_uncontested(self, market_token: str):
         """Finalizes a market that had no disputes."""
         checksum_market = Web3.to_checksum_address(market_token)
-        func = self.contract.functions.finalizeUncontested(checksum_market)
+        func = self._contract.functions.finalizeUncontested(checksum_market)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -94,7 +94,7 @@ class MarketResolverModule:
     def finalize_market(self, market_token: str):
         """Finalizes a market after dispute resolution."""
         checksum_market = Web3.to_checksum_address(market_token)
-        func = self.contract.functions.finalizeMarket(checksum_market)
+        func = self._contract.functions.finalizeMarket(checksum_market)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -102,9 +102,9 @@ class MarketResolverModule:
     def veto(self, market_token: str, proposed_outcome: int):
         """Vetoes a proposed outcome. Auto-approves USDB."""
         checksum_market = Web3.to_checksum_address(market_token)
-        proposal_bond = self.contract.functions.PROPOSAL_BOND().call()
+        proposal_bond = self._contract.functions.PROPOSAL_BOND().call()
         self._approve_if_needed(self.client.usdb_address, self.resolver_address, proposal_bond)
-        func = self.contract.functions.veto(checksum_market, proposed_outcome)
+        func = self._contract.functions.veto(checksum_market, proposed_outcome)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -112,7 +112,7 @@ class MarketResolverModule:
     def claim_bounty(self, market_token: str):
         """Claims the bounty for a resolved market."""
         checksum_market = Web3.to_checksum_address(market_token)
-        func = self.contract.functions.claimBounty(checksum_market)
+        func = self._contract.functions.claimBounty(checksum_market)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -124,7 +124,7 @@ class MarketResolverModule:
             round: dispute round number (integer)
         """
         checksum_market = Web3.to_checksum_address(market_token)
-        func = self.contract.functions.claimEarlyBounty(checksum_market, round)
+        func = self._contract.functions.claimEarlyBounty(checksum_market, round)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -136,32 +136,32 @@ class MarketResolverModule:
     def get_dispute_data(self, market_token: str):
         """Returns dispute data for a market."""
         checksum_market = Web3.to_checksum_address(market_token)
-        return self.contract.functions.disputes(checksum_market).call()
+        return self._contract.functions.disputes(checksum_market).call()
 
     def is_resolved(self, market_token: str) -> bool:
         """Checks if a market is resolved."""
         checksum_market = Web3.to_checksum_address(market_token)
-        return self.contract.functions.resolved(checksum_market).call()
+        return self._contract.functions.resolved(checksum_market).call()
 
     def get_final_outcome(self, market_token: str) -> int:
         """Returns the final outcome ID of a resolved market."""
         checksum_market = Web3.to_checksum_address(market_token)
-        return self.contract.functions.finalOutcome(checksum_market).call()
+        return self._contract.functions.finalOutcome(checksum_market).call()
 
     def is_in_dispute(self, market_token: str) -> bool:
         """Checks if a market is currently in dispute."""
         checksum_market = Web3.to_checksum_address(market_token)
-        return self.contract.functions.inDispute(checksum_market).call()
+        return self._contract.functions.inDispute(checksum_market).call()
 
     def is_in_veto(self, market_token: str) -> bool:
         """Checks if a market is currently in veto period."""
         checksum_market = Web3.to_checksum_address(market_token)
-        return self.contract.functions.inVeto(checksum_market).call()
+        return self._contract.functions.inVeto(checksum_market).call()
 
     def get_current_round(self, market_token: str) -> int:
         """Returns the current dispute round for a market."""
         checksum_market = Web3.to_checksum_address(market_token)
-        return self.contract.functions.currentRound(checksum_market).call()
+        return self._contract.functions.currentRound(checksum_market).call()
 
     def get_vote_count(self, market_token: str, round: int, outcome_id: int) -> int:
         """Returns the vote count for a specific outcome in a dispute round.
@@ -170,7 +170,7 @@ class MarketResolverModule:
             round: dispute round number (integer)
         """
         checksum_market = Web3.to_checksum_address(market_token)
-        return self.contract.functions.nftVoteCount(checksum_market, round, outcome_id).call()
+        return self._contract.functions.nftVoteCount(checksum_market, round, outcome_id).call()
 
     def has_voted(self, market_token: str, round: int, voter: str) -> bool:
         """Checks if a voter has voted in a specific dispute round.
@@ -180,7 +180,7 @@ class MarketResolverModule:
         """
         checksum_market = Web3.to_checksum_address(market_token)
         checksum_voter = Web3.to_checksum_address(voter)
-        return self.contract.functions.nftHasVoted(checksum_market, round, checksum_voter).call()
+        return self._contract.functions.nftHasVoted(checksum_market, round, checksum_voter).call()
 
     def get_voter_choice(self, market_token: str, round: int, voter: str) -> int:
         """Returns the outcome a voter chose in a dispute round.
@@ -190,34 +190,34 @@ class MarketResolverModule:
         """
         checksum_market = Web3.to_checksum_address(market_token)
         checksum_voter = Web3.to_checksum_address(voter)
-        return self.contract.functions.voterChoice(checksum_market, round, checksum_voter).call()
+        return self._contract.functions.voterChoice(checksum_market, round, checksum_voter).call()
 
     def get_bounty_per_vote(self, market_token: str) -> int:
         """Returns the bounty per vote for a market."""
         checksum_market = Web3.to_checksum_address(market_token)
-        return self.contract.functions.bountyPerCorrectVote(checksum_market).call()
+        return self._contract.functions.bountyPerCorrectVote(checksum_market).call()
 
     def has_claimed(self, market_token: str, voter: str) -> bool:
         """Checks if a voter has claimed their bounty."""
         checksum_market = Web3.to_checksum_address(market_token)
         checksum_voter = Web3.to_checksum_address(voter)
-        return self.contract.functions.bountyClaimed(checksum_market, checksum_voter).call()
+        return self._contract.functions.bountyClaimed(checksum_market, checksum_voter).call()
 
     def get_user_stake(self, voter: str) -> int:
         """Returns the stake amount for a voter."""
         checksum_voter = Web3.to_checksum_address(voter)
-        return self.contract.functions.userStakedAmount(checksum_voter).call()
+        return self._contract.functions.userStakedAmount(checksum_voter).call()
 
     def is_voter(self, voter: str) -> bool:
         """Checks if an address is a registered voter."""
         checksum_voter = Web3.to_checksum_address(voter)
-        return self.contract.functions.isVoter(checksum_voter).call()
+        return self._contract.functions.isVoter(checksum_voter).call()
 
     def get_constants(self) -> dict:
         """Returns all system parameters/constants by reading individual public variables."""
         return {
-            'DISPUTE_PERIOD': self.contract.functions.DISPUTE_PERIOD().call(),
-            'PROPOSAL_PERIOD': self.contract.functions.PROPOSAL_PERIOD().call(),
-            'PROPOSAL_BOND': self.contract.functions.PROPOSAL_BOND().call(),
-            'MIN_STAKE_AMOUNT': self.contract.functions.MIN_STAKE_AMOUNT().call(),
+            'DISPUTE_PERIOD': self._contract.functions.DISPUTE_PERIOD().call(),
+            'PROPOSAL_PERIOD': self._contract.functions.PROPOSAL_PERIOD().call(),
+            'PROPOSAL_BOND': self._contract.functions.PROPOSAL_BOND().call(),
+            'MIN_STAKE_AMOUNT': self._contract.functions.MIN_STAKE_AMOUNT().call(),
         }

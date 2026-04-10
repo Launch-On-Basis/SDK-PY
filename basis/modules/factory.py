@@ -18,39 +18,13 @@ class FactoryModule:
         self.factory_address = Web3.to_checksum_address(factory_address)
         self.factory_abi = load_abi('ATokenFactory.json')
         self.token_abi = load_abi('FACTORYTOKEN.json')
-        self.contract = self.client.web3.eth.contract(address=self.factory_address, abi=self.factory_abi)
+        self._contract = self.client.web3.eth.contract(address=self.factory_address, abi=self.factory_abi)
 
     def _sync_tx(self, tx_hash: str):
         """Sync tx to backend. Raises on failure."""
         if not tx_hash.startswith("0x"):
             tx_hash = "0x" + tx_hash
         self.client.api.sync_transaction(tx_hash)
-
-    def _create_token(
-        self,
-        symbol: str,
-        name: str,
-        hybrid_multiplier: int,
-        frozen: bool,
-        usdb_for_bonding: int,
-        start_lp: int,
-        auto_vest: bool,
-        auto_vest_duration: int,
-        gradual_autovest: bool
-    ):
-        fee_amount = self.contract.functions.feeAmount().call()
-        func = self.contract.functions.createToken(
-            symbol,
-            name,
-            hybrid_multiplier,
-            frozen,
-            usdb_for_bonding,
-            start_lp,
-            auto_vest,
-            auto_vest_duration,
-            gradual_autovest
-        )
-        return self.client.send_transaction(func, value=fee_amount)
 
     def create_token_with_metadata(
         self,
@@ -72,29 +46,38 @@ class FactoryModule:
     ):
         """Creates a token and registers its metadata on IPFS in one call.
 
+        This is the ONLY way to create a token — image and metadata are mandatory.
+
         Requires SIWE authentication (call client.authenticate() first).
 
-        1. Creates the token on-chain
-        2. Parses the new token address from logs
-        3. Downloads, resizes (512x512 WebP), and uploads the image to IPFS
-        4. Creates metadata on IPFS
+        1. Validates image is provided
+        2. Creates the token on-chain
+        3. Parses the new token address from logs
+        4. Downloads, resizes (512x512 WebP), and uploads the image to IPFS
+        5. Creates metadata on IPFS
 
         Args:
             hybrid_multiplier: raw integer (not wei) -- controls floor price rise speed
             start_lp: initial liquidity in wei (18 decimals)
             usdb_for_bonding: USDB amount in wei (18 decimals)
             auto_vest_duration: vesting duration in days (integer)
+            image_url: URL of the token image (provide image_url or image_file)
+            image_file: local file path for the image (alternative to image_url)
 
         Returns dict with hash, receipt, token_address, image_url, metadata.
         """
+        # 0. Validate image up front — fail before spending gas
+        if not image_url and not image_file:
+            raise ValueError('Either image_url or image_file is required.')
+
         # 1. Create token on-chain
-        create_result = self._create_token(
-            symbol=symbol, name=name,
-            hybrid_multiplier=hybrid_multiplier, frozen=frozen,
-            usdb_for_bonding=usdb_for_bonding, start_lp=start_lp,
-            auto_vest=auto_vest, auto_vest_duration=auto_vest_duration,
-            gradual_autovest=gradual_autovest,
+        fee_amount = self._contract.functions.feeAmount().call()
+        func = self._contract.functions.createToken(
+            symbol, name, hybrid_multiplier, frozen,
+            usdb_for_bonding, start_lp,
+            auto_vest, auto_vest_duration, gradual_autovest,
         )
+        create_result = self.client.send_transaction(func, value=fee_amount)
 
         receipt = create_result['receipt']
         if receipt.get('status') == 0:
@@ -121,8 +104,6 @@ class FactoryModule:
             raise RuntimeError("Could not extract token address from creation logs.")
 
         # 3. Upload image
-        if not image_url and not image_file:
-            raise ValueError('Either image_url or image_file is required.')
         if image_file:
             uploaded_image_url = self.client.api.upload_image(image_file, purpose='token', address=token_address)
         else:
@@ -172,15 +153,15 @@ class FactoryModule:
 
     def is_ecosystem_token(self, token_address: str) -> bool:
         """Checks if a token is an ecosystem token."""
-        return self.contract.functions.isEcosystemToken(Web3.to_checksum_address(token_address)).call()
+        return self._contract.functions.isEcosystemToken(Web3.to_checksum_address(token_address)).call()
 
     def get_tokens_by_creator(self, creator: str) -> list:
         """Returns all tokens created by a given address."""
-        return self.contract.functions.getTokensByCreator(Web3.to_checksum_address(creator)).call()
+        return self._contract.functions.getTokensByCreator(Web3.to_checksum_address(creator)).call()
 
     def get_fee_amount(self) -> int:
         """Returns the current fee amount for token creation."""
-        return self.contract.functions.feeAmount().call()
+        return self._contract.functions.feeAmount().call()
 
     def remove_whitelist(self, token_address: str, wallet: str):
         """Removes a wallet from a token's whitelist."""

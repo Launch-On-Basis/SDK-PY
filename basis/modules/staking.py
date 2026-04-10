@@ -11,7 +11,7 @@ class StakingModule:
         self.staking_address = Web3.to_checksum_address(staking_address)
         self.staking_abi = load_abi('AStasisVault.json')
         self.erc20_abi = load_abi('IERC20.json')
-        self.contract = self.client.web3.eth.contract(address=self.staking_address, abi=self.staking_abi)
+        self._contract = self.client.web3.eth.contract(address=self.staking_address, abi=self.staking_abi)
 
     def _approve_if_needed(self, token_address: str, spender: str, amount: int):
         if not self.client.account:
@@ -42,7 +42,7 @@ class StakingModule:
             amount: STASIS amount in wei (18 decimals)
         """
         self._approve_if_needed(self.client.main_token_address, self.staking_address, amount)
-        func = self.contract.functions.buy(amount)
+        func = self._contract.functions.buy(amount)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -54,7 +54,7 @@ class StakingModule:
             shares: wSTASIS shares in wei (18 decimals)
             min_usdb: minimum USDB output in wei (18 decimals)
         """
-        func = self.contract.functions.sell(shares, claim_usdb, min_usdb)
+        func = self._contract.functions.sell(shares, claim_usdb, min_usdb)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -66,7 +66,7 @@ class StakingModule:
             shares: wSTASIS shares in wei (18 decimals)
         """
         self._approve_if_needed(self.staking_address, self.staking_address, shares)
-        func = self.contract.functions.lock(shares)
+        func = self._contract.functions.lock(shares)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -77,7 +77,7 @@ class StakingModule:
         Args:
             shares: wSTASIS shares in wei (18 decimals)
         """
-        func = self.contract.functions.unlock(shares)
+        func = self._contract.functions.unlock(shares)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -90,7 +90,7 @@ class StakingModule:
             stasis_amount_to_borrow: STASIS collateral in wei (18 decimals)
             days: integer, minimum 10
         """
-        func = self.contract.functions.borrow(stasis_amount_to_borrow, days)
+        func = self._contract.functions.borrow(stasis_amount_to_borrow, days)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -105,7 +105,7 @@ class StakingModule:
         balance = usdb_contract.functions.balanceOf(self.client.account.address).call()
         if balance > 0:
             self._approve_if_needed(self.client.usdb_address, self.staking_address, balance)
-        func = self.contract.functions.repay()
+        func = self._contract.functions.repay()
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -123,7 +123,7 @@ class StakingModule:
             balance = usdb_contract.functions.balanceOf(self.client.account.address).call()
             if balance > 0:
                 self._approve_if_needed(self.client.usdb_address, self.staking_address, balance)
-        func = self.contract.functions.extendLoan(days_to_add, pay_in_usdb, refinance)
+        func = self._contract.functions.extendLoan(days_to_add, pay_in_usdb, refinance)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -131,12 +131,12 @@ class StakingModule:
     def get_user_stake_details(self, user: str):
         """Returns (liquidShares, lockedShares, totalShares, totalAssetValue)."""
         checksum_user = Web3.to_checksum_address(user)
-        return self.contract.functions.getUserStakeDetails(checksum_user).call()
+        return self._contract.functions.getUserStakeDetails(checksum_user).call()
 
     def get_available_stasis(self, user: str) -> int:
         """Gets available STASIS (collateral value minus pledged)."""
         checksum_user = Web3.to_checksum_address(user)
-        return self.contract.functions.getAvailableStasis(checksum_user).call()
+        return self._contract.functions.getAvailableStasis(checksum_user).call()
 
     def convert_to_shares(self, assets: int) -> int:
         """Converts STASIS amount to wSTASIS shares.
@@ -144,7 +144,7 @@ class StakingModule:
         Args:
             assets: STASIS amount in wei (18 decimals)
         """
-        return self.contract.functions.convertToShares(assets).call()
+        return self._contract.functions.convertToShares(assets).call()
 
     def convert_to_assets(self, shares: int) -> int:
         """Converts wSTASIS shares to STASIS amount.
@@ -152,11 +152,11 @@ class StakingModule:
         Args:
             shares: wSTASIS shares in wei (18 decimals)
         """
-        return self.contract.functions.convertToAssets(shares).call()
+        return self._contract.functions.convertToAssets(shares).call()
 
     def total_assets(self) -> int:
         """Returns total STASIS held by the vault (available + pledged)."""
-        return self.contract.functions.totalAssets().call()
+        return self._contract.functions.totalAssets().call()
 
     def add_to_loan(self, additional_stasis_to_borrow: int):
         """Adds to the existing staking loan by borrowing more.
@@ -164,14 +164,14 @@ class StakingModule:
         Args:
             additional_stasis_to_borrow: STASIS collateral in wei (18 decimals)
         """
-        func = self.contract.functions.addToLoan(additional_stasis_to_borrow)
+        func = self._contract.functions.addToLoan(additional_stasis_to_borrow)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
 
     def settle_liquidation(self):
         """Settles a liquidation on the staking position."""
-        func = self.contract.functions.settleLiquidation()
+        func = self._contract.functions.settleLiquidation()
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result

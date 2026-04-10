@@ -10,7 +10,7 @@ class LoansModule:
         self.client = client
         self.loan_hub_address = Web3.to_checksum_address(loan_hub_address)
         self.loan_hub_abi = load_abi('ALOAN_HUB.json')
-        self.contract = self.client.web3.eth.contract(address=self.loan_hub_address, abi=self.loan_hub_abi)
+        self._contract = self.client.web3.eth.contract(address=self.loan_hub_address, abi=self.loan_hub_abi)
 
     def _sync_tx(self, tx_hash: str):
         """Sync tx to backend. Raises on failure."""
@@ -42,7 +42,7 @@ class LoansModule:
         checksum_ecosystem = Web3.to_checksum_address(ecosystem)
         checksum_collateral = Web3.to_checksum_address(collateral)
         self._approve_if_needed(collateral, self.loan_hub_address, amount)
-        func = self.contract.functions.takeLoan(checksum_ecosystem, checksum_collateral, amount, days_count)
+        func = self._contract.functions.takeLoan(checksum_ecosystem, checksum_collateral, amount, days_count)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -58,7 +58,7 @@ class LoansModule:
         full_amount = int(loan_details[7]) if isinstance(loan_details, (list, tuple)) else int(loan_details.get('fullAmount', 0))
         if full_amount > 0:
             self._approve_if_needed(self.client.usdb_address, self.loan_hub_address, full_amount)
-        func = self.contract.functions.repayLoan(hub_id)
+        func = self._contract.functions.repayLoan(hub_id)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -77,20 +77,20 @@ class LoansModule:
             balance = usdb.functions.balanceOf(self.client.account.address).call()
             if balance > 0:
                 self._approve_if_needed(self.client.usdb_address, self.loan_hub_address, balance)
-        func = self.contract.functions.extendLoan(hub_id, add_days, pay_in_stable, refinance)
+        func = self._contract.functions.extendLoan(hub_id, add_days, pay_in_stable, refinance)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
 
     def claim_liquidation(self, hub_id: int):
-        func = self.contract.functions.claimLiquidation(hub_id)
+        func = self._contract.functions.claimLiquidation(hub_id)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
 
     def get_user_loan_details(self, user: str, hub_id: int):
         checksum_user = Web3.to_checksum_address(user)
-        return self.contract.functions.getUserLoanDetails(checksum_user, hub_id).call()
+        return self._contract.functions.getUserLoanDetails(checksum_user, hub_id).call()
 
     def increase_loan(self, hub_id: int, amount_to_add: int):
         """Increases collateral on an existing loan. Auto-approves the collateral token.
@@ -101,7 +101,7 @@ class LoansModule:
         loan_details = self.get_user_loan_details(self.client.account.address, hub_id)
         collateral = loan_details[3]  # collateralToken at index 3 in FullLoanDetails struct
         self._approve_if_needed(collateral, self.loan_hub_address, amount_to_add)
-        func = self.contract.functions.increaseLoan(hub_id, amount_to_add)
+        func = self._contract.functions.increaseLoan(hub_id, amount_to_add)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -113,11 +113,11 @@ class LoansModule:
             percentage: integer 10-100, divisible by 10
             min_out: minimum output in wei (18 decimals)
         """
-        func = self.contract.functions.hubPartialLoanSell(hub_id, percentage, is_leverage, min_out)
+        func = self._contract.functions.hubPartialLoanSell(hub_id, percentage, is_leverage, min_out)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
 
     def get_user_loan_count(self, user: str) -> int:
         """Returns the number of loans for a user."""
-        return self.contract.functions.userLoanCount(Web3.to_checksum_address(user)).call()
+        return self._contract.functions.userLoanCount(Web3.to_checksum_address(user)).call()

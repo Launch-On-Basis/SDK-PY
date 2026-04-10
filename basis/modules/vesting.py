@@ -12,7 +12,7 @@ class VestingModule:
         self.vesting_address = Web3.to_checksum_address(vesting_address)
         self.vesting_abi = load_abi('A_VestingContract.json')
         self.erc20_abi = load_abi('IERC20.json')
-        self.contract = self.client.web3.eth.contract(address=self.vesting_address, abi=self.vesting_abi)
+        self._contract = self.client.web3.eth.contract(address=self.vesting_address, abi=self.vesting_abi)
 
     def _approve_if_needed(self, token_address: str, spender: str, amount: int):
         if not self.client.account:
@@ -29,7 +29,7 @@ class VestingModule:
 
     def _get_fee_amount(self) -> int:
         try:
-            return self.contract.functions.feeAmount().call()
+            return self._contract.functions.feeAmount().call()
         except Exception:
             return 0
 
@@ -50,7 +50,7 @@ class VestingModule:
         """
         self._approve_if_needed(token, self.vesting_address, total_amount)
         fee = self._get_fee_amount()
-        func = self.contract.functions.createGradualVesting(
+        func = self._contract.functions.createGradualVesting(
             Web3.to_checksum_address(beneficiary),
             Web3.to_checksum_address(token),
             total_amount, start_time, duration_in_days, time_unit, memo,
@@ -69,7 +69,7 @@ class VestingModule:
         """
         self._approve_if_needed(token, self.vesting_address, total_amount)
         fee = self._get_fee_amount()
-        func = self.contract.functions.createCliffVesting(
+        func = self._contract.functions.createCliffVesting(
             Web3.to_checksum_address(beneficiary),
             Web3.to_checksum_address(token),
             total_amount, unlock_time, memo,
@@ -80,13 +80,13 @@ class VestingModule:
         return result
 
     def claim_tokens(self, vesting_id: int):
-        func = self.contract.functions.claimTokens(vesting_id)
+        func = self._contract.functions.claimTokens(vesting_id)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
 
     def take_loan_on_vesting(self, vesting_id: int):
-        func = self.contract.functions.takeLoanOnVesting(vesting_id)
+        func = self._contract.functions.takeLoanOnVesting(vesting_id)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -101,16 +101,16 @@ class VestingModule:
         balance = usdb_contract.functions.balanceOf(self.client.account.address).call()
         if balance > 0:
             self._approve_if_needed(self.client.usdb_address, self.vesting_address, balance)
-        func = self.contract.functions.repayLoanOnVesting(vesting_id)
+        func = self._contract.functions.repayLoanOnVesting(vesting_id)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
 
     def get_vesting_details(self, vesting_id: int):
-        return self.contract.functions.getVestingDetails(vesting_id).call()
+        return self._contract.functions.getVestingDetails(vesting_id).call()
 
     def get_claimable_amount(self, vesting_id: int):
-        return self.contract.functions.getClaimableAmount(vesting_id).call()
+        return self._contract.functions.getClaimableAmount(vesting_id).call()
 
     def batch_create_gradual_vesting(self, beneficiaries: list[str], token: str, total_amounts: list[int], user_memos: list[str], start_time: int, duration_in_days: int, time_unit: int, ecosystem: str):
         """Creates gradual vestings for multiple beneficiaries. Auto-approves sum of amounts and attaches fee.
@@ -127,7 +127,7 @@ class VestingModule:
         total = sum(total_amounts)
         self._approve_if_needed(token, self.vesting_address, total)
         fee = self._get_fee_amount()
-        func = self.contract.functions.batchCreateGradualVesting(
+        func = self._contract.functions.batchCreateGradualVesting(
             checksum_beneficiaries, checksum_token, total_amounts, user_memos,
             start_time, duration_in_days, time_unit, checksum_ecosystem
         )
@@ -148,7 +148,7 @@ class VestingModule:
         total = sum(total_amounts)
         self._approve_if_needed(token, self.vesting_address, total)
         fee = self._get_fee_amount()
-        func = self.contract.functions.batchCreateCliffVesting(
+        func = self._contract.functions.batchCreateCliffVesting(
             checksum_beneficiaries, checksum_token, total_amounts, unlock_time,
             user_memos, checksum_ecosystem
         )
@@ -158,7 +158,7 @@ class VestingModule:
 
     def change_beneficiary(self, vesting_id: int, new_beneficiary: str):
         """Changes the beneficiary of a vesting."""
-        func = self.contract.functions.changeBeneficiary(vesting_id, Web3.to_checksum_address(new_beneficiary))
+        func = self._contract.functions.changeBeneficiary(vesting_id, Web3.to_checksum_address(new_beneficiary))
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -169,7 +169,7 @@ class VestingModule:
         Args:
             additional_days: integer, number of days
         """
-        func = self.contract.functions.extendVestingPeriod(vesting_id, additional_days)
+        func = self._contract.functions.extendVestingPeriod(vesting_id, additional_days)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
@@ -183,44 +183,44 @@ class VestingModule:
         details = self.get_vesting_details(vesting_id)
         token = details[2]  # token address from vesting details (creator=0, beneficiary=1, token=2)
         self._approve_if_needed(token, self.vesting_address, additional_amount)
-        func = self.contract.functions.addTokensToVesting(vesting_id, additional_amount)
+        func = self._contract.functions.addTokensToVesting(vesting_id, additional_amount)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
 
     def transfer_creator_role(self, vesting_id: int, new_creator: str):
         """Transfers the creator role of a vesting to a new address."""
-        func = self.contract.functions.transferCreatorRole(vesting_id, Web3.to_checksum_address(new_creator))
+        func = self._contract.functions.transferCreatorRole(vesting_id, Web3.to_checksum_address(new_creator))
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
 
     def get_vested_amount(self, vesting_id: int) -> int:
         """Returns the total vested amount for a vesting schedule."""
-        return self.contract.functions.getVestedAmount(vesting_id).call()
+        return self._contract.functions.getVestedAmount(vesting_id).call()
 
     def get_active_loan(self, vesting_id: int) -> int:
         """Returns the active loan ID for a vesting schedule."""
-        return self.contract.functions.getActiveLoan(vesting_id).call()
+        return self._contract.functions.getActiveLoan(vesting_id).call()
 
     def get_token_vesting_ids(self, token: str, start_index: int, end_index: int) -> list:
         """Returns vesting IDs for a given token within a specified index range."""
-        return self.contract.functions.getTokenVestingIds(
+        return self._contract.functions.getTokenVestingIds(
             Web3.to_checksum_address(token), start_index, end_index
         ).call()
 
     def get_vesting_details_batch(self, vesting_ids: list):
         """Returns vesting details for multiple vesting IDs in a single call."""
-        return self.contract.functions.getVestingDetailsBatch(vesting_ids).call()
+        return self._contract.functions.getVestingDetailsBatch(vesting_ids).call()
 
     def get_vesting_count(self) -> int:
         """Returns the total number of vesting schedules created."""
-        return self.contract.functions.vestingCount().call()
+        return self._contract.functions.vestingCount().call()
 
     def get_vestings_by_beneficiary(self, beneficiary: str) -> list:
         """Returns all vesting IDs for a beneficiary."""
-        return self.contract.functions.getVestingsByBeneficiary(Web3.to_checksum_address(beneficiary)).call()
+        return self._contract.functions.getVestingsByBeneficiary(Web3.to_checksum_address(beneficiary)).call()
 
     def get_vestings_by_creator(self, creator: str) -> list:
         """Returns all vesting IDs for a creator."""
-        return self.contract.functions.getVestingsByCreator(Web3.to_checksum_address(creator)).call()
+        return self._contract.functions.getVestingsByCreator(Web3.to_checksum_address(creator)).call()

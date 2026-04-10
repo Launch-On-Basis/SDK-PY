@@ -38,7 +38,7 @@ class AgentIdentityModule:
     def __init__(self, client):
         self.client = client
         self.registry_address = Web3.to_checksum_address(IDENTITY_REGISTRY)
-        self.contract = self.client.web3.eth.contract(
+        self._contract = self.client.web3.eth.contract(
             address=self.registry_address, abi=IDENTITY_ABI
         )
 
@@ -70,7 +70,7 @@ class AgentIdentityModule:
     def is_registered(self, wallet: str) -> bool:
         """Check if a wallet has an agent NFT on the Identity Registry."""
         checksum = Web3.to_checksum_address(wallet)
-        balance = self.contract.functions.balanceOf(checksum).call()
+        balance = self._contract.functions.balanceOf(checksum).call()
         return balance > 0
 
     def get_agent_id_from_chain(self, wallet: str) -> Optional[int]:
@@ -78,7 +78,7 @@ class AgentIdentityModule:
         Returns the agentId or None if not found.
         """
         checksum = Web3.to_checksum_address(wallet)
-        registered_event = self.contract.events.Registered()
+        registered_event = self._contract.events.Registered()
         logs = registered_event.get_logs(
             fromBlock=0,
             argument_filters={"owner": checksum}
@@ -94,7 +94,7 @@ class AgentIdentityModule:
             raise ValueError("Private key required to register as agent.")
 
         uri = self._build_metadata_uri(self.client.account.address, config)
-        func = self.contract.functions.register(uri)
+        func = self._contract.functions.register(uri)
         result = self.client.send_transaction(func)
 
         # Parse agentId from Registered event
@@ -202,19 +202,19 @@ class AgentIdentityModule:
 
     def get_agent_uri(self, agent_id: int) -> str:
         """Get the tokenURI for a registered agent (on-chain)."""
-        return self.contract.functions.tokenURI(agent_id).call()
+        return self._contract.functions.tokenURI(agent_id).call()
 
     def get_agent_wallet(self, agent_id: int) -> str:
         """Get the wallet linked to an agent ID (on-chain)."""
-        return self.contract.functions.getAgentWallet(agent_id).call()
+        return self._contract.functions.getAgentWallet(agent_id).call()
 
     def get_metadata(self, agent_id: int, key: str) -> bytes:
         """Get metadata for an agent by key (on-chain)."""
-        return self.contract.functions.getMetadata(agent_id, key).call()
+        return self._contract.functions.getMetadata(agent_id, key).call()
 
     def set_agent_uri(self, agent_id: int, new_uri: str) -> Dict[str, Any]:
         """Update the agent's URI (on-chain). Must be the owner."""
-        func = self.contract.functions.setAgentURI(agent_id, new_uri)
+        func = self._contract.functions.setAgentURI(agent_id, new_uri)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
