@@ -73,20 +73,31 @@ class AgentIdentityModule:
         balance = self._contract.functions.balanceOf(checksum).call()
         return balance > 0
 
-    def get_agent_id_from_chain(self, wallet: str) -> Optional[int]:
-        """Look up the agentId for a wallet by scanning Registered events on-chain.
-        Returns the agentId or None if not found.
-        """
-        checksum = Web3.to_checksum_address(wallet)
-        registered_event = self._contract.events.Registered()
-        logs = registered_event.get_logs(
-            from_block=0,
-            argument_filters={"owner": checksum}
-        )
-        if not logs:
-            return None
-        # Return the most recent registration
-        return logs[-1]["args"]["agentId"]
+    _REGISTERED_SIG = Web3.keccak(text="Registered(uint256,string,address)")
+
+    def _parse_agent_id_from_receipt(self, receipt) -> Optional[int]:
+        """Parse agentId from a registration tx receipt by matching the Registered event."""
+        for log_entry in receipt.get("logs", []):
+            addr = log_entry.get("address", "")
+            if addr.lower() != self.registry_address.lower():
+                continue
+            topics = log_entry.get("topics", [])
+            if len(topics) < 2:
+                continue
+            # Check event signature matches Registered(uint256,string,address)
+            sig = topics[0]
+            if sig != self._REGISTERED_SIG:
+                continue
+            raw = topics[1]
+            if isinstance(raw, bytes):
+                return int.from_bytes(raw, "big")
+            return int(raw, 16) if isinstance(raw, str) else int(raw)
+        return None
+
+    def get_agent_id_from_tx(self, tx_hash: str) -> Optional[int]:
+        """Extract the agentId from a registration transaction receipt."""
+        receipt = self.client.web3.eth.get_transaction_receipt(tx_hash)
+        return self._parse_agent_id_from_receipt(receipt)
 
     def register(self, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Register the current wallet as an ERC-8004 agent. Returns hash and agentId."""
@@ -98,20 +109,8 @@ class AgentIdentityModule:
         result = self.client.send_transaction(func)
 
         # Parse agentId from Registered event
-        agent_id = 0
         receipt = result["receipt"]
-        for log_entry in receipt.get("logs", []):
-            addr = log_entry.get("address", "")
-            if addr.lower() == self.registry_address.lower():
-                topics = log_entry.get("topics", [])
-                if len(topics) >= 2:
-                    # topics[0] = event sig, topics[1] = indexed agentId
-                    raw = topics[1]
-                    if isinstance(raw, bytes):
-                        agent_id = int.from_bytes(raw, "big")
-                    else:
-                        agent_id = int(raw, 16) if isinstance(raw, str) else int(raw)
-                    break
+        agent_id = self._parse_agent_id_from_receipt(receipt) or 0
 
         self._sync_tx(result['hash'])
         result["agentId"] = agent_id
@@ -138,9 +137,13 @@ class AgentIdentityModule:
 
         return result
 
-    def register_and_sync(self, config: Optional[Dict[str, Any]] = None) -> int:
+    def register_and_sync(self, config: Optional[Dict[str, Any]] = None, tx_hash: Optional[str] = None) -> int:
         """Full registration flow: check on-chain, register if needed, sync to API.
         Returns the agentId.
+
+        If already registered on-chain but not synced to the API, pass
+        the original registration tx_hash to recover the agentId from
+        the transaction receipt.
         """
         if not self.client.account:
             raise ValueError("Private key required.")
@@ -153,10 +156,16 @@ class AgentIdentityModule:
             api_agent = self.lookup_from_api(address)
             if api_agent and api_agent.get("isAgent"):
                 return api_agent["agent"]["agentId"]
-            # On-chain but not in API — get real agentId from chain events, then force sync
-            chain_agent_id = self.get_agent_id_from_chain(address)
+            # On-chain but not in API — need tx_hash to recover agentId from receipt
+            if not tx_hash:
+                raise ValueError(
+                    "Already registered on-chain but not synced to API. "
+                    "Provide your registration tx_hash to recover: "
+                    "register_and_sync(tx_hash='0x...')"
+                )
+            chain_agent_id = self.get_agent_id_from_tx(tx_hash)
             if chain_agent_id is None:
-                raise RuntimeError("Agent shows as registered (balanceOf > 0) but no Registered event found on-chain")
+                raise RuntimeError("Could not parse agentId from transaction receipt")
             self._sync_to_api(address, chain_agent_id, config)
             synced = self.lookup_from_api(address)
             if synced and synced.get("isAgent"):
