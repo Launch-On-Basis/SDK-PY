@@ -131,12 +131,12 @@ class BasisClient:
         nonce = self.web3.eth.get_transaction_count(self.account.address)
 
         if self.gasless:
-            # Try gasless: build with gasPrice=0, send to megafuel
+            # Try gasless: build with gas_price=0, send to megafuel
             try:
                 tx = function_call.build_transaction({
                     'from': self.account.address,
                     'nonce': nonce,
-                    'gasPrice': 0,
+                    'gas_price': 0,
                     'value': value,
                 })
                 signed_tx = self.web3.eth.account.sign_transaction(tx, private_key=self.account.key)

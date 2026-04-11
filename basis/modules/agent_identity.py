@@ -80,7 +80,7 @@ class AgentIdentityModule:
         checksum = Web3.to_checksum_address(wallet)
         registered_event = self._contract.events.Registered()
         logs = registered_event.get_logs(
-            fromBlock=0,
+            from_block=0,
             argument_filters={"owner": checksum}
         )
         if not logs:

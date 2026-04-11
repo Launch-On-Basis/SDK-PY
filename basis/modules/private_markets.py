@@ -45,7 +45,7 @@ class PrivateMarketsModule:
     # ------------------------------------------------------------------
 
     def create_market_with_metadata(self, market_name: str, symbol: str, end_time: int,
-                                     option_names: list, maintoken: str, image_url: str = None,
+                                     option_names: list, maintoken: str = None, image_url: str = None,
                                      image_file: str = None, private_event: bool = True,
                                      frozen: bool = False, bonding: int = 0, seed_amount: int = 0,
                                      description: str = None,
@@ -69,9 +69,16 @@ class PrivateMarketsModule:
             raise ValueError('Either image_url or image_file is required.')
 
         # 1. Create market on-chain
+        if not maintoken:
+            maintoken = self.client.main_token_address
         checksum_maintoken = Web3.to_checksum_address(maintoken)
         eco_data = self._contract.functions.ecosystems(checksum_maintoken).call()
         factory_address = eco_data[0]
+        if factory_address == '0x' + '0' * 40:
+            raise ValueError(
+                f"Token {maintoken} is not a registered ecosystem token — "
+                f"cannot create a market under it. Use an existing ecosystem token address as maintoken."
+            )
         factory_abi = load_abi('ATokenFactory.json')
         factory_contract = self.client.web3.eth.contract(address=factory_address, abi=factory_abi)
         fee_amount = factory_contract.functions.feeAmount().call()
