@@ -29,6 +29,11 @@ class VestingModule:
 
     def _get_fee_amount(self) -> int:
         try:
+            if not self._contract.functions.feeEnabled().call():
+                return 0
+            if self.client.account:
+                if self._contract.functions.feeWhitelist(self.client.account.address).call():
+                    return 0
             return self._contract.functions.feeAmount().call()
         except Exception:
             return 0
