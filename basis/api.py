@@ -1067,6 +1067,32 @@ class BasisAPI:
         """
         return self._auth_request("GET", "/v1/me/referrals")
 
+    def get_my_daily_caps(self) -> Dict[str, Any]:
+        """Today's cap-fill percentages for the authenticated wallet.
+
+        ``GET /api/v1/me/daily-caps``
+
+        Caps reset at 00:00 UTC. Returns::
+
+            {
+              "date": "YYYY-MM-DD",
+              "resetsInSeconds": int,   # seconds until next 00:00 UTC reset
+              "pointCaps": [
+                {"category": "trading"|"prediction"|"creator"|"positions",
+                 "percent": float},
+                ...
+              ],
+              "countCaps": [
+                {"category": "social_x"|"social_moltbook", "percent": float},
+                ...
+              ]
+            }
+
+        ``pointCaps`` always has 4 entries; ``countCaps`` always has 2.
+        Each ``percent`` is 0-100, rounded to 1 decimal, clamped at 100.
+        """
+        return self._auth_request("GET", "/v1/me/daily-caps")
+
     # ------------------------------------------------------------------
     # Moltbook account linking (session or API key)
     # ------------------------------------------------------------------

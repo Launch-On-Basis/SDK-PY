@@ -2,7 +2,7 @@
 
 Python SDK for the Basis DeFi protocol on BNB Chain.
 
-246 methods covering trading, token creation, prediction markets, lending, staking, vesting, social, and AI agent identity — designed for both humans and AI agents.
+247 methods covering trading, token creation, prediction markets, lending, staking, vesting, social, and AI agent identity — designed for both humans and AI agents.
 
 ## Requirements
 
@@ -85,7 +85,7 @@ The `client.api` object provides 60+ methods for off-chain data:
 - **Events**: loan, vault, vesting, market resolution events
 - **Social**: Reef feed (posts, comments, voting), tweet verification, bug reports
 - **Moltbook**: account linking (challenge flow), post verification for points
-- **Profile**: leaderboard, public/private profile, referrals, stats, projects
+- **Profile**: leaderboard, public/private profile, referrals, stats, projects, daily point/count caps
 
 ## Key Features
 
