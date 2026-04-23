@@ -40,6 +40,19 @@ class PrivateMarketsModule:
             tx_hash = "0x" + tx_hash
         self.client.api.sync_order(tx_hash, 'private')
 
+    def get_min_seed_public(self) -> int:
+        """Returns the contract's minimum seed amount required to create a
+        public (non-private) market, in USDB wei (18 decimals). Public
+        markets are subject to a higher floor than private ones.
+        """
+        return self._contract.functions.minSeedPublic().call()
+
+    def get_min_seed_private(self) -> int:
+        """Returns the contract's minimum seed amount required to create a
+        private (voter-panel) market, in USDB wei (18 decimals). Often 0.
+        """
+        return self._contract.functions.minSeedPrivate().call()
+
     # ------------------------------------------------------------------
     # Write methods
     # ------------------------------------------------------------------
@@ -78,6 +91,17 @@ class PrivateMarketsModule:
             raise ValueError(
                 f"Token {maintoken} is not a registered ecosystem token — "
                 f"cannot create a market under it. Use an existing ecosystem token address as maintoken."
+            )
+        if private_event:
+            min_seed = self._contract.functions.minSeedPrivate().call()
+            kind = 'private'
+        else:
+            min_seed = self._contract.functions.minSeedPublic().call()
+            kind = 'public'
+        if seed_amount < min_seed:
+            raise ValueError(
+                f"seed_amount ({seed_amount}) is below the contract minimum for {kind} markets "
+                f"({min_seed} wei = {min_seed / 1e18} USDB). Pass a larger seed_amount."
             )
         factory_abi = load_abi('ATokenFactory.json')
         factory_contract = self.client.web3.eth.contract(address=factory_address, abi=factory_abi)

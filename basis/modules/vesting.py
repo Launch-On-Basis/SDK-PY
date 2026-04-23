@@ -11,6 +11,7 @@ class VestingModule:
         self.client = client
         self.vesting_address = Web3.to_checksum_address(vesting_address)
         self.vesting_abi = load_abi('A_VestingContract.json')
+        self.loan_hub_abi = load_abi('ALOAN_HUB.json')
         self.erc20_abi = load_abi('IERC20.json')
         self._contract = self.client.web3.eth.contract(address=self.vesting_address, abi=self.vesting_abi)
 
@@ -97,15 +98,43 @@ class VestingModule:
         return result
 
     def repay_loan_on_vesting(self, vesting_id: int):
-        """Repays a loan on vesting. Auto-approves USDB to vesting contract."""
+        """Repays a loan taken on a vesting schedule.
+
+        Auto-approves the exact debt of the borrowed token to the vesting
+        contract. Reads ``vestingSchedules(id).ecosystem`` and
+        ``ecosystems(maintoken).mainpair`` to discover the borrow token
+        (typically USDB but ecosystem-defined), then reads the loan's
+        ``fullAmount`` from the loan hub. If the underlying loan is no
+        longer active, no approval is performed -- the contract handles
+        cleanup paths without a transferFrom.
+        """
         if not self.client.account:
             raise ValueError("Stateful initialization (private_key) is required.")
-        usdb_contract = self.client.web3.eth.contract(
-            address=Web3.to_checksum_address(self.client.usdb_address), abi=self.erc20_abi
-        )
-        balance = usdb_contract.functions.balanceOf(self.client.account.address).call()
-        if balance > 0:
-            self._approve_if_needed(self.client.usdb_address, self.vesting_address, balance)
+
+        # 1. Find the active loan id; bail early if none.
+        active_loan_id = self._contract.functions.getActiveLoan(vesting_id).call()
+        if active_loan_id == 0:
+            raise ValueError("No active loan on this vesting schedule.")
+
+        # 2. Discover the borrow token via the schedule's ecosystem.
+        schedule = self._contract.functions.vestingSchedules(vesting_id).call()
+        ecosystem = schedule[3]  # creator=0, beneficiary=1, token=2, ecosystem=3
+        eco = self._contract.functions.ecosystems(ecosystem).call()
+        borrowed_token = eco[2]  # (maintoken, factory, mainpair)
+
+        # 3. Read the actual debt from the loan hub (borrower-of-record
+        #    is the vesting contract itself, not msg.sender).
+        loan_hub_address = Web3.to_checksum_address(self._contract.functions.LOAN().call())
+        loan_hub = self.client.web3.eth.contract(address=loan_hub_address, abi=self.loan_hub_abi)
+        details = loan_hub.functions.getUserLoanDetails(self.vesting_address, active_loan_id).call()
+        # FullLoanDetails tuple: fullAmount=index 7, active=index 12
+        full_amount = details[7]
+        is_active = details[12]
+
+        # 4. Approve only if the contract will actually pull funds.
+        if is_active and full_amount > 0:
+            self._approve_if_needed(borrowed_token, self.vesting_address, full_amount)
+
         func = self._contract.functions.repayLoanOnVesting(vesting_id)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])

@@ -10,8 +10,20 @@ class StakingModule:
         self.client = client
         self.staking_address = Web3.to_checksum_address(staking_address)
         self.staking_abi = load_abi('AStasisVault.json')
+        self.loan_hub_abi = load_abi('ALOAN_HUB.json')
+        self.main_core_abi = load_abi('IMAIN_CORE.json')
         self.erc20_abi = load_abi('IERC20.json')
         self._contract = self.client.web3.eth.contract(address=self.staking_address, abi=self.staking_abi)
+
+    def _get_active_staking_loan(self, user: str):
+        """Returns (hub_id, loan_hub_address). Raises if no active staking loan."""
+        checksum_user = Web3.to_checksum_address(user)
+        # userVaults -> (lockedWStasis, pledgedStasis, hubId, hasActiveLoan)
+        _, _, hub_id, has_active_loan = self._contract.functions.userVaults(checksum_user).call()
+        if not has_active_loan:
+            raise ValueError("No active staking loan for this wallet.")
+        loan_hub_address = self._contract.functions.loanHub().call()
+        return hub_id, Web3.to_checksum_address(loan_hub_address)
 
     def _approve_if_needed(self, token_address: str, spender: str, amount: int):
         if not self.client.account:
@@ -96,33 +108,60 @@ class StakingModule:
         return result
 
     def repay(self):
-        """Repays the active staking loan. Auto-approves USDB."""
+        """Repays the active staking loan.
+
+        Auto-approves the exact USDB debt to the staking contract (read
+        from the loan hub; borrower-of-record is the staking vault).
+        Raises if the caller has no active staking loan.
+        """
         if not self.client.account:
             raise ValueError("Stateful initialization (private_key) is required.")
-        usdb_contract = self.client.web3.eth.contract(
-            address=Web3.to_checksum_address(self.client.usdb_address), abi=self.erc20_abi
-        )
-        balance = usdb_contract.functions.balanceOf(self.client.account.address).call()
-        if balance > 0:
-            self._approve_if_needed(self.client.usdb_address, self.staking_address, balance)
+        user = self.client.account.address
+
+        hub_id, loan_hub_address = self._get_active_staking_loan(user)
+
+        loan_hub = self.client.web3.eth.contract(address=loan_hub_address, abi=self.loan_hub_abi)
+        details = loan_hub.functions.getUserLoanDetails(self.staking_address, hub_id).call()
+        # FullLoanDetails tuple: fullAmount is index 7
+        full_amount = details[7]
+        if full_amount > 0:
+            self._approve_if_needed(self.client.usdb_address, self.staking_address, full_amount)
+
         func = self._contract.functions.repay()
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
         return result
 
     def extend_loan(self, days_to_add: int, pay_in_usdb: bool, refinance: bool):
-        """Extends the active staking loan. Auto-approves USDB when pay_in_usdb is True.
+        """Extends the active staking loan.
+
+        When ``pay_in_usdb`` is True, auto-approves the exact extension fee
+        (read from the ecosystem's ``ExtensionEligibility``).
 
         Args:
-            days_to_add: integer, minimum 10
+            days_to_add: integer, minimum 10 (or 0 when refinance is True)
         """
-        if pay_in_usdb and self.client.account:
-            usdb_contract = self.client.web3.eth.contract(
-                address=Web3.to_checksum_address(self.client.usdb_address), abi=self.erc20_abi
+        if not self.client.account:
+            raise ValueError("Stateful initialization (private_key) is required.")
+
+        if pay_in_usdb:
+            user = self.client.account.address
+            hub_id, loan_hub_address = self._get_active_staking_loan(user)
+
+            loan_hub = self.client.web3.eth.contract(address=loan_hub_address, abi=self.loan_hub_abi)
+            ecosystem, core_loan_id, _collateral = loan_hub.functions.userLoans(self.staking_address, hub_id).call()
+
+            core = self.client.web3.eth.contract(
+                address=Web3.to_checksum_address(ecosystem), abi=self.main_core_abi
             )
-            balance = usdb_contract.functions.balanceOf(self.client.account.address).call()
-            if balance > 0:
-                self._approve_if_needed(self.client.usdb_address, self.staking_address, balance)
+            possible, fee, _extra = core.functions.ExtensionEligibility(
+                loan_hub_address, core_loan_id, days_to_add, False, True, refinance
+            ).call()
+            if not possible:
+                raise ValueError("Extension not possible under current loan state.")
+            if fee > 0:
+                self._approve_if_needed(self.client.usdb_address, self.staking_address, fee)
+
         func = self._contract.functions.extendLoan(days_to_add, pay_in_usdb, refinance)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])

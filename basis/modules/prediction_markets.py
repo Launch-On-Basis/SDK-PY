@@ -19,6 +19,13 @@ class PredictionMarketsModule:
             tx_hash = "0x" + tx_hash
         self.client.api.sync_transaction(tx_hash)
 
+    def get_min_seed(self) -> int:
+        """Returns the contract's minimum seed amount required to create a
+        market, in USDB wei (18 decimals). ``create_market_with_metadata``
+        will revert if ``seed_amount < min_seed``.
+        """
+        return self._contract.functions.minSeed().call()
+
     def _approve_if_needed(self, token_address: str, amount: int):
         if not self.client.account:
             raise ValueError("Wallet account is required for approval.")
@@ -79,6 +86,12 @@ class PredictionMarketsModule:
             raise ValueError(
                 f"Token {maintoken} is not a registered ecosystem token — "
                 f"cannot create a market under it. Use an existing ecosystem token address as maintoken."
+            )
+        min_seed = self._contract.functions.minSeed().call()
+        if seed_amount < min_seed:
+            raise ValueError(
+                f"seed_amount ({seed_amount}) is below the contract minimum "
+                f"({min_seed} wei = {min_seed / 1e18} USDB). Pass a larger seed_amount."
             )
         factory_abi = load_abi('ATokenFactory.json')
         factory_contract = self.client.web3.eth.contract(address=factory_address, abi=factory_abi)

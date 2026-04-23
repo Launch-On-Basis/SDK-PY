@@ -10,6 +10,7 @@ class LoansModule:
         self.client = client
         self.loan_hub_address = Web3.to_checksum_address(loan_hub_address)
         self.loan_hub_abi = load_abi('ALOAN_HUB.json')
+        self.main_core_abi = load_abi('IMAIN_CORE.json')
         self._contract = self.client.web3.eth.contract(address=self.loan_hub_address, abi=self.loan_hub_abi)
 
     def _sync_tx(self, tx_hash: str):
@@ -64,19 +65,31 @@ class LoansModule:
         return result
 
     def extend_loan(self, hub_id: int, add_days: int, pay_in_stable: bool, refinance: bool):
-        """Extends a loan. When pay_in_stable is True, auto-approves USDB to the LoanHub.
+        """Extends a loan.
+
+        When ``pay_in_stable`` is True, auto-approves the exact extension
+        fee (read from the ecosystem's ``ExtensionEligibility``).
 
         Args:
-            add_days: integer, minimum 10
+            add_days: integer, minimum 10 (or 0 when refinance is True)
         """
-        if pay_in_stable and self.client.account:
-            erc20_abi = load_abi('IERC20.json')
-            usdb = self.client.web3.eth.contract(
-                address=Web3.to_checksum_address(self.client.usdb_address), abi=erc20_abi
+        if not self.client.account:
+            raise ValueError("Stateful initialization (private_key) is required for write methods.")
+
+        if pay_in_stable:
+            user = self.client.account.address
+            ecosystem, core_loan_id, _collateral = self._contract.functions.userLoans(user, hub_id).call()
+            core = self.client.web3.eth.contract(
+                address=Web3.to_checksum_address(ecosystem), abi=self.main_core_abi
             )
-            balance = usdb.functions.balanceOf(self.client.account.address).call()
-            if balance > 0:
-                self._approve_if_needed(self.client.usdb_address, self.loan_hub_address, balance)
+            possible, fee, _extra = core.functions.ExtensionEligibility(
+                self.loan_hub_address, core_loan_id, add_days, False, True, refinance
+            ).call()
+            if not possible:
+                raise ValueError("Extension not possible under current loan state.")
+            if fee > 0:
+                self._approve_if_needed(self.client.usdb_address, self.loan_hub_address, fee)
+
         func = self._contract.functions.extendLoan(hub_id, add_days, pay_in_stable, refinance)
         result = self.client.send_transaction(func)
         self._sync_tx(result['hash'])
