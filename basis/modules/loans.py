@@ -40,8 +40,23 @@ class LoansModule:
             amount: collateral amount in wei (18 decimals)
             days_count: integer, minimum 10
         """
+        if not self.client.account:
+            raise ValueError("Stateful initialization (private_key) is required for write methods.")
         checksum_ecosystem = Web3.to_checksum_address(ecosystem)
         checksum_collateral = Web3.to_checksum_address(collateral)
+
+        # Pre-check balance -- the on-chain failure is "Insufficient token balance"
+        # (or arithmetic underflow for big overshoots), neither of which makes the
+        # off-by-one obvious. Fail fast client-side instead of burning gas.
+        erc20_abi = load_abi('IERC20.json')
+        token = self.client.web3.eth.contract(address=checksum_collateral, abi=erc20_abi)
+        balance = token.functions.balanceOf(self.client.account.address).call()
+        if balance < amount:
+            raise ValueError(
+                f"Insufficient collateral balance. Have: {balance} wei ({balance / 1e18}), "
+                f"want: {amount} wei ({amount / 1e18}). Token: {checksum_collateral}"
+            )
+
         self._approve_if_needed(collateral, self.loan_hub_address, amount)
         func = self._contract.functions.takeLoan(checksum_ecosystem, checksum_collateral, amount, days_count)
         result = self.client.send_transaction(func)

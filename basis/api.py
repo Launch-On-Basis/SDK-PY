@@ -7,6 +7,32 @@ from typing import Optional, Dict, Any, List, Union
 logger = logging.getLogger(__name__)
 
 
+# --- Up/Down validation helpers --------------------------------------------
+# Used by get_my_updown / get_updown_rounds / get_updown_round to prevent
+# garbage from reaching the backend (clearer errors) and to guard URL-path
+# interpolation (defense against `token="../foo"` / `tf=True` etc.).
+# `bool` is excluded explicitly because Python's bool is a subclass of int
+# (`isinstance(True, int) is True`) -- without the exclusion, `tf=True` would
+# pass and interpolate as the literal string "True" into the URL.
+
+UPDOWN_TOKENS = ("btc", "eth", "bnb", "cake", "doge")
+
+
+def _validate_updown_token(token: Any) -> None:
+    if token not in UPDOWN_TOKENS:
+        raise ValueError(f"token must be one of {UPDOWN_TOKENS} (got {token!r})")
+
+
+def _validate_updown_tf(tf: Any) -> None:
+    if isinstance(tf, bool) or not isinstance(tf, int) or tf < 0 or tf > 4:
+        raise ValueError(f"tf must be an integer 0-4 (got {tf!r})")
+
+
+def _validate_updown_round_id(round_id: Any) -> None:
+    if isinstance(round_id, bool) or not isinstance(round_id, int) or round_id < 1:
+        raise ValueError(f"round_id must be a positive integer (got {round_id!r})")
+
+
 class BasisAPI:
     """HTTP client for the Basis off-chain API.
 
@@ -1092,6 +1118,90 @@ class BasisAPI:
         Each ``percent`` is 0-100, rounded to 1 decimal, clamped at 100.
         """
         return self._auth_request("GET", "/v1/me/daily-caps")
+
+    # ------------------------------------------------------------------
+    # Up/Down (session or API key for /me; API key only for /updown/*)
+    # ------------------------------------------------------------------
+
+    def get_my_updown(self) -> Dict[str, Any]:
+        """Aggregate UPDOWN bet/claim summary for the authenticated wallet.
+
+        ``GET /api/v1/me/updown``
+
+        Returns one summary blob with embedded ``activeBets[]`` and
+        ``claimableBets[]`` arrays. To get the exact USDB amount a
+        ``claimableBets`` entry will pay, call
+        ``client.updown[token].quote_claim_payout(tf, round_id, user)`` on-chain.
+
+        All on-chain numeric values are returned as decimal strings.
+        ``netUsdb`` can be negative for losing wallets.
+        """
+        return self._auth_request("GET", "/v1/me/updown")
+
+    def get_updown_rounds(
+        self,
+        token: str,
+        tf: Optional[int] = None,
+        outcome: Optional[str] = None,
+        cursor: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Paginated list of UPDOWN rounds for a given token, newest-first.
+
+        ``GET /api/v1/updown/rounds``
+
+        **API key required.** Unlike ``get_my_updown()``, this endpoint does
+        NOT accept SIWE -- call ``BasisClient.create(private_key=...)`` (which
+        auto-provisions a key) or pass ``api_key`` explicitly.
+
+        Cursor pagination via roundId (descending). Limit default 20, max 200.
+
+        Args:
+            token: ``btc`` | ``eth`` | ``bnb``
+            tf: timeframe filter (0-4)
+            outcome: ``pending`` | ``bull_wins`` | ``bear_wins`` | ``canceled``
+            cursor: roundId from a prior page's ``pagination.nextCursor``
+            limit: page size (default 20, max 200)
+        """
+        if not self.client.api_key:
+            raise ValueError(
+                "API key required for get_updown_rounds (this endpoint does not accept SIWE)."
+            )
+        _validate_updown_token(token)
+        if tf is not None:
+            _validate_updown_tf(tf)
+        params: Dict[str, Any] = {"token": token}
+        if tf is not None:
+            params["tf"] = tf
+        if outcome is not None:
+            params["outcome"] = outcome
+        if cursor is not None:
+            params["cursor"] = cursor
+        if limit is not None:
+            params["limit"] = limit
+        return self._auth_request("GET", "/v1/updown/rounds", params=params)
+
+    def get_updown_round(self, token: str, tf: int, round_id: int) -> Dict[str, Any]:
+        """Single UPDOWN round with aggregate bet/claim statistics.
+
+        ``GET /api/v1/updown/rounds/{token}/{tf}/{round_id}``
+
+        **API key required.** Same auth model as ``get_updown_rounds`` -- SIWE
+        is not accepted by this endpoint.
+
+        Per-bettor wallet lists are NOT returned -- use ``get_my_updown()``
+        for per-wallet history (or query on-chain via getLogs).
+        """
+        if not self.client.api_key:
+            raise ValueError(
+                "API key required for get_updown_round (this endpoint does not accept SIWE)."
+            )
+        # Validate path components before interpolation -- a malicious caller
+        # passing something like "../foo" must not escape the URL path.
+        _validate_updown_token(token)
+        _validate_updown_tf(tf)
+        _validate_updown_round_id(round_id)
+        return self._auth_request("GET", f"/v1/updown/rounds/{token}/{tf}/{round_id}")
 
     # ------------------------------------------------------------------
     # Moltbook account linking (session or API key)

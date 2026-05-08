@@ -13,6 +13,7 @@ from .modules.market_reader import MarketReaderModule
 from .modules.leverage_simulator import LeverageSimulatorModule
 from .modules.taxes import TaxesModule
 from .modules.agent_identity import AgentIdentityModule
+from .modules.up_down import UpDownModule, UpDownAssetModule, Timeframe, Side, Outcome, OracleNotReadyError
 
 __all__ = [
     "BasisClient",
@@ -30,4 +31,10 @@ __all__ = [
     "LeverageSimulatorModule",
     "TaxesModule",
     "AgentIdentityModule",
+    "UpDownModule",
+    "UpDownAssetModule",
+    "Timeframe",
+    "Side",
+    "Outcome",
+    "OracleNotReadyError",
 ]

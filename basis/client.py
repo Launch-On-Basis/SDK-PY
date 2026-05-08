@@ -20,6 +20,7 @@ from .modules.agent_identity import AgentIdentityModule
 from .modules.market_reader import MarketReaderModule
 from .modules.leverage_simulator import LeverageSimulatorModule
 from .modules.taxes import TaxesModule
+from .modules.up_down import UpDownModule
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,13 @@ DEFAULT_ADDRESSES = {
     "reader": "0xF406cA6403c57Ad04c8E13F4ae87b3732daa087d",
     "leverage": "0xeffb140d821c5B20EFc66346Cf414EeAC8A8FDB2",
     "taxes": "0x4501d1279273c44dA483842ED17b5451e7d3A601",
+    "upDown": {
+        "btc":  "0xFB6B61F0F7A099d32FF161eb1c2e17ca265759fa",
+        "eth":  "0xE58b057aCe79Ea0CB9724d9a0eF9B8DD8E95b257",
+        "bnb":  "0x3E7d6c2cCE12A5102B612331a4C85cB9d8553979",
+        "cake": "0xbA6c7C5f98d9b55cF072811156d366AD68537256",
+        "doge": "0x2Eda68AB78089C83E9998BAa966caa9A1A181945",
+    },
 }
 
 
@@ -74,6 +82,7 @@ class BasisClient:
         reader_address: str = DEFAULT_ADDRESSES["reader"],
         leverage_address: str = DEFAULT_ADDRESSES["leverage"],
         taxes_address: str = DEFAULT_ADDRESSES["taxes"],
+        up_down_addresses: Optional[Dict[str, str]] = None,
     ):
         self.rpc_url = rpc_url
         self.api_domain = api_domain
@@ -115,6 +124,16 @@ class BasisClient:
         self.leverage_simulator = LeverageSimulatorModule(self, leverage_address)
         self.taxes = TaxesModule(self, taxes_address)
         self.agent = AgentIdentityModule(self)
+
+        # Up/Down: per-asset deployments, None for zero-address (not yet deployed).
+        # Per-key fallback: a partial override like {"btc": "0x..."} keeps the
+        # hardcoded defaults for the other assets instead of silently nulling them.
+        ud_defaults = DEFAULT_ADDRESSES["upDown"]
+        ud_overrides = up_down_addresses or {}
+        self.updown = UpDownModule(self, {
+            asset: ud_overrides.get(asset, ud_defaults[asset])
+            for asset in ("btc", "eth", "bnb", "cake", "doge")
+        })
 
     # ------------------------------------------------------------------
     # Gasless transaction helper
@@ -217,25 +236,45 @@ class BasisClient:
         if rpc_url != DEFAULT_RPC_URL:
             client._validate_rpc()
 
-        # 2. Fetch remote contract addresses and warn on mismatch
+        # 2. Validate hardcoded defaults against the canonical contracts.json.
+        #    If the remote is reachable AND any address differs, raise a fatal
+        #    error -- the SDK is out of date and the caller MUST update.
+        #    If contracts.json is unreachable (network down etc.), fall back
+        #    silently to hardcoded defaults so the SDK still works offline.
+        remote = None
         try:
             import requests as _req
             res = _req.get(f"{client.api_domain}/contracts.json", timeout=5)
             if res.ok:
                 remote = res.json()
-                mismatched = [
-                    name for name, default_addr in DEFAULT_ADDRESSES.items()
-                    if name in remote and remote[name].lower() != default_addr.lower()
-                ]
-                if mismatched:
-                    import warnings
-                    warnings.warn(
-                        "[basis-sdk] Contract addresses have changed. Please update your SDK to the latest version. "
-                        f"Mismatched: {', '.join(mismatched)}",
-                        stacklevel=2,
-                    )
         except Exception:
-            pass  # Remote unreachable — continue with hardcoded defaults
+            remote = None  # network failure -- skip validation, use hardcoded
+        if remote is not None:
+            mismatches = []  # list of (name, remote_addr, default_addr)
+            for name, default_addr in DEFAULT_ADDRESSES.items():
+                # Skip nested entries (handled below) and any non-string default
+                # so a future addition of another nested dict doesn't AttributeError on .lower().
+                if not isinstance(default_addr, str):
+                    continue
+                remote_addr = remote.get(name)
+                if isinstance(remote_addr, str) and remote_addr.lower() != default_addr.lower():
+                    mismatches.append((name, remote_addr, default_addr))
+            # upDown is nested -- flatten each known asset address into the check
+            remote_ud = remote.get("upDown")
+            if isinstance(remote_ud, dict):
+                for asset in ("btc", "eth", "bnb", "cake", "doge"):
+                    default_addr = DEFAULT_ADDRESSES["upDown"][asset]
+                    remote_addr = remote_ud.get(asset)
+                    if isinstance(remote_addr, str) and remote_addr.lower() != default_addr.lower():
+                        mismatches.append((f"upDown.{asset}", remote_addr, default_addr))
+            if mismatches:
+                lines = [f"  {n}: SDK has {d}, contracts.json has {r}" for (n, r, d) in mismatches]
+                raise RuntimeError(
+                    f"[basis-sdk] Contract address mismatch with {client.api_domain}/contracts.json. "
+                    "One side is stale -- either update the SDK (pip install -U basis-sdk-python) "
+                    "or update contracts.json on the backend so they agree.\n"
+                    f"Mismatched ({len(mismatches)}):\n" + "\n".join(lines)
+                )
 
         # 3. Auth + key provisioning
         if private_key:

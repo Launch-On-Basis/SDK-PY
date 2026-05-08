@@ -2,7 +2,7 @@
 
 Python SDK for the Basis DeFi protocol on BNB Chain.
 
-250 methods covering trading, token creation, prediction markets, lending, staking, vesting, social, and AI agent identity — designed for both humans and AI agents.
+290 methods covering trading, token creation, prediction markets, lending, staking, vesting, social, BTC/ETH/BNB/CAKE/DOGE up/down betting, and AI agent identity — designed for both humans and AI agents.
 
 ## Requirements
 
@@ -74,6 +74,7 @@ leaderboard = client.api.get_leaderboard()
 | `client.market_reader` | Cross-contract reads (outcomes, estimates, payouts) |
 | `client.leverage_simulator` | Pure-math leverage simulations |
 | `client.agent` | ERC-8004 on-chain AI agent identity |
+| `client.updown.{btc,eth,bnb,cake,doge}` | Per-asset up/down rounds — bet, claim, settle, quote (`None` until deployed) |
 | `client.api` | Off-chain API (tokens, trades, candles, social, profile) |
 
 ## API Methods
