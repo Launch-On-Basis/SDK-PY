@@ -1119,6 +1119,38 @@ class BasisAPI:
         """
         return self._auth_request("GET", "/v1/me/daily-caps")
 
+    def get_my_orders(
+        self,
+        status: Optional[str] = None,
+        market_token: Optional[str] = None,
+        outcome_id: Optional[int] = None,
+        page: int = 1,
+        limit: int = 20,
+    ) -> Dict[str, Any]:
+        """Paginated list of the authenticated wallet's order-book orders
+        across all prediction markets.
+
+        ``GET /api/v1/me/orders``
+
+        Auth: SIWE session OR API key.
+
+        :param status: filter by ``ACTIVE`` | ``FILLED`` | ``CANCELLED``.
+            Default: all statuses.
+        :param market_token: narrow to a single market.
+        :param outcome_id: narrow to a single outcome (0-indexed).
+        :param page: default ``1``.
+        :param limit: default ``20``.
+        :returns: ``{"data": [MyOrder, ...], "pagination": {page, limit, total, totalPages}}``
+        """
+        params: Dict[str, Any] = {"page": page, "limit": limit}
+        if status is not None:
+            params["status"] = status
+        if market_token is not None:
+            params["marketToken"] = market_token
+        if outcome_id is not None:
+            params["outcomeId"] = outcome_id
+        return self._auth_request("GET", "/v1/me/orders", params=params)
+
     # ------------------------------------------------------------------
     # Up/Down (session or API key for /me; API key only for /updown/*)
     # ------------------------------------------------------------------

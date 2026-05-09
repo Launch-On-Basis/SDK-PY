@@ -177,6 +177,28 @@ class StakingModule:
         checksum_user = Web3.to_checksum_address(user)
         return self._contract.functions.getAvailableStasis(checksum_user).call()
 
+    def get_vault_loan(self, wallet: str):
+        """Returns the active vault loan for ``wallet``, or ``None`` if there is none.
+
+        Reads ``userVaults(wallet)`` to discover the user's ``hubId`` +
+        ``hasActiveLoan`` flag, then (if active) calls the loan hub's
+        ``getUserLoanDetails``. Note: the borrower-of-record on the loan hub
+        for vault loans is the staking vault contract itself, NOT the user
+        wallet -- passing ``wallet`` here would read a different (typically
+        empty) loan record. The SDK handles this correctly.
+
+        :param wallet: the user's address
+        :returns: FullLoanDetails struct (positional tuple), or ``None``
+        """
+        checksum_wallet = Web3.to_checksum_address(wallet)
+        vault = self._contract.functions.userVaults(checksum_wallet).call()
+        # vault tuple: (lockedWStasis, pledgedStasis, hubId, hasActiveLoan)
+        _, _, hub_id, has_active_loan = vault
+        if not has_active_loan:
+            return None
+        # borrower-of-record = staking vault, not the user
+        return self.client.loans.get_user_loan_details(self.staking_address, hub_id)
+
     def convert_to_shares(self, assets: int) -> int:
         """Converts STASIS amount to wSTASIS shares.
 

@@ -17,6 +17,36 @@ class TaxesModule:
     # Read methods
     # ------------------------------------------------------------------
 
+    def get_creator_earnings(self, token: str, dev: str) -> int:
+        """Returns the dev's accumulated unpaid USDB earnings on ``token``,
+        in 18-dec wei.
+
+        The Up/Basis tax model is push-based: tokens accrue dev tax to this
+        counter, and when ``distributeTax(token)`` fires (called internally
+        on contract events), the accumulated amount is paid out to the dev
+        wallets per their basis-point shares. This getter reads the
+        un-distributed accrued balance.
+
+        :param token: token contract address
+        :param dev: dev wallet address
+        :returns: accumulated unpaid USDB earnings, 18-dec wei (``int``)
+        """
+        return self._contract.functions.tokenDevEarnings(
+            Web3.to_checksum_address(token), Web3.to_checksum_address(dev)
+        ).call()
+
+    def get_dev_total_earnings(self, dev: str) -> int:
+        """Returns the dev's lifetime distributed earnings across every token
+        they have a share on, in 18-dec USDB wei.
+
+        This is the cumulative paid-out total, not the un-distributed
+        accrual -- for that, use ``get_creator_earnings(token, dev)`` per token.
+
+        :param dev: dev wallet address
+        :returns: lifetime paid-out USDB earnings, 18-dec wei (``int``)
+        """
+        return self._contract.functions.devTotalEarnings(Web3.to_checksum_address(dev)).call()
+
     def get_tax_rate(self, token: str, user: str) -> int:
         """Returns the tax rate in basis points for a token/user pair."""
         checksum_token = Web3.to_checksum_address(token)

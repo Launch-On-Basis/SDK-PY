@@ -196,25 +196,106 @@ class UpDownAssetModule:
 
     # --- Writes (user) ---
 
-    def bet_bull(self, tf: int, amount: int, min_shares: int = 0) -> Dict[str, Any]:
+    def bet_bull(
+        self,
+        tf: int,
+        amount: int,
+        min_shares: int = 0,
+        *,
+        auto_advance: bool = True,
+        auto_advance_delay_ms: int = 500,
+        auto_advance_max_wait_ms: int = 30_000,
+    ) -> Dict[str, Any]:
         """Place a bullish bet on the current round of ``tf``. Auto-approves USDB.
 
-        Pre-checks: ``amount >= min_bet()`` and ``usdb.balanceOf(user) >= amount``.
+        **Default behavior auto-advances stale-pending rounds.** If the current
+        round is past ``endTime`` but nobody has settled it yet, the contract
+        would reject the bet with ``BettingClosed``. By default, the SDK detects
+        this and calls :meth:`advance_round` first, then bets on the freshly-
+        opened next round. Set ``auto_advance=False`` to opt out.
 
-        Args:
-            min_shares: optional slippage protection. If non-zero, throws
-                client-side when ``quote_shares(tf, BULL, amount) < min_shares``.
+        Pre-checks: ``amount >= min_bet()``, ``usdb.balanceOf(user) >= amount``,
+        and ``quote_shares > 0`` (catches ``ZeroShares`` from slippage crush).
+
+        :param tf: Timeframe enum (0=5m, 1=15m, 2=1h, 3=4h, 4=24h)
+        :param amount: Stake in USDB 18-dec wei
+        :param min_shares: Optional slippage guard. Default ``0`` (no check).
+            Throws if ``quote_shares(tf, BULL, amount) < min_shares``.
+        :param auto_advance: If ``True`` (default), auto-settle/cancel a stale-
+            pending round before submitting. Errors during the inner
+            ``advance_round`` call are silently swallowed.
+        :param auto_advance_delay_ms: Delay after a successful auto-advance
+            before submitting the bet. Default ``500`` -- lets RPC replication
+            catch up. Set to ``0`` for instant follow-up.
+        :param auto_advance_max_wait_ms: Cap on how long the inner
+            ``advance_round`` polls Chainlink before giving up. Default
+            ``30_000`` (30s) -- lower than ``advance_round``'s own 6min default
+            because we silently swallow the failure here.
         """
-        return self._bet(tf, Side.BULL, amount, min_shares, 'betBull')
+        return self._bet(
+            tf, Side.BULL, amount, min_shares, "betBull",
+            auto_advance, auto_advance_delay_ms, auto_advance_max_wait_ms,
+        )
 
-    def bet_bear(self, tf: int, amount: int, min_shares: int = 0) -> Dict[str, Any]:
-        """Place a bearish bet. See ``bet_bull`` for slippage protection details."""
-        return self._bet(tf, Side.BEAR, amount, min_shares, 'betBear')
+    def bet_bear(
+        self,
+        tf: int,
+        amount: int,
+        min_shares: int = 0,
+        *,
+        auto_advance: bool = True,
+        auto_advance_delay_ms: int = 500,
+        auto_advance_max_wait_ms: int = 30_000,
+    ) -> Dict[str, Any]:
+        """Place a bearish bet. See :meth:`bet_bull` for the full options."""
+        return self._bet(
+            tf, Side.BEAR, amount, min_shares, "betBear",
+            auto_advance, auto_advance_delay_ms, auto_advance_max_wait_ms,
+        )
 
-    def _bet(self, tf: int, side: int, amount: int, min_shares: int, fn_name: str) -> Dict[str, Any]:
+    def _bet(
+        self, tf: int, side: int, amount: int, min_shares: int, fn_name: str,
+        auto_advance: bool = True, auto_advance_delay_ms: int = 500, auto_advance_max_wait_ms: int = 30_000,
+    ) -> Dict[str, Any]:
         if not self.client.account:
             raise ValueError("Stateful initialization (private_key) is required for write methods.")
         user = self.client.account.address
+
+        # Auto-advance: if the current round is stale-pending (past endTime
+        # but not settled), try to settle/cancel it before betting. The inner
+        # advance_round does its own _sync_tx -- that sync MUST run if the tx
+        # hits chain.
+        #
+        # We only swallow EXPECTED race conditions (someone else advanced first,
+        # round transitioned mid-flight, oracle stalled). Real failures -- sync
+        # errors, wallet config, RPC outages -- propagate so the caller sees
+        # them and the always-sync invariant isn't silently violated.
+        if auto_advance:
+            import time
+            try:
+                cur = self.get_current_round(tf)
+                if cur is not None and cur["round"]["outcome"] == 0:
+                    now = int(time.time())
+                    if now > cur["round"]["endTime"]:
+                        self.advance_round(tf, max_wait_s=auto_advance_max_wait_ms / 1000.0)
+                        if auto_advance_delay_ms > 0:
+                            time.sleep(auto_advance_delay_ms / 1000.0)
+            except Exception as e:
+                msg = str(e)
+                expected_race = (
+                    # Settle attempt revert from a stale oracle (typed via settle_current_round)
+                    isinstance(e, OracleNotReadyError) or
+                    # Inner advance_round's _wait_for_oracle gave up after auto_advance_max_wait
+                    "Chainlink price feed" in msg and "has not updated" in msg or
+                    # Pre-check ValueErrors / contract revert names
+                    any(s in msg for s in (
+                        "RoundAlreadySettled", "TooEarlyToSettle", "NoActiveRound",
+                        "already settled", "still in progress", "Settle window", "No active round",
+                    ))
+                )
+                if not expected_race:
+                    raise
+                # else: swallow -- bet's own pre-checks surface anything that matters.
 
         # Pre-check minBet
         min_bet_amount = self.min_bet()
