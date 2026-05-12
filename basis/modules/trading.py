@@ -166,6 +166,50 @@ class TradingModule:
         self._sync_tx(result['hash'])
         return result
 
+    def claim_leverage_liquidation(self, loan_id: int):
+        """Claims the residual tokens left after a leverage position was liquidated.
+
+        Calls ``MAIN_TOKEN.ClaimLiquidation(loanId, true)`` directly. Leverage
+        liquidations bypass the loan hub (the hub's ``claimLiquidation``
+        hardcodes ``isLeverage = false``), so this is the only on-chain path
+        to recover leverage liquidation residue.
+
+        Pre-checks: position exists, is inactive (``!active``), and
+        ``liquidationClaim > 0``.
+
+        For hub-loan liquidation claims use ``client.loans.claim_liquidation(hub_id)``.
+        For vault (staking) liquidation use ``client.staking.settle_liquidation()``.
+
+        :param loan_id: the leverage position id (NOT the loan hub's hubId)
+        :returns: ``{"hash": ..., "receipt": ...}``
+        """
+        if not self.client.account:
+            raise ValueError("Stateful initialization (private_key) is required for write methods.")
+        user = self.client.account.address
+        main_token = self.client.web3.eth.contract(
+            address=Web3.to_checksum_address(self.client.main_token_address),
+            abi=self._LEVERAGE_ABI,
+        )
+        # Tuple shape: (user, token, collateralAmount, liquidatedAmount, fullAmount,
+        # borrowedAmount, liquidationTime, liquidationClaim, isLiquidated, active,
+        # creationTime, timeOfClosure, leverage(tuple))
+        pos = main_token.functions.leverages(user, loan_id).call()
+        liquidation_claim = pos[7]
+        active = pos[9]
+        if active:
+            raise ValueError(
+                f"Leverage position {loan_id} is still active -- wait for liquidation before claiming."
+            )
+        if liquidation_claim == 0:
+            raise ValueError(
+                f"Nothing to claim on leverage position {loan_id} (liquidationClaim is 0 -- "
+                f"either already claimed or no residue)."
+            )
+        func = main_token.functions.ClaimLiquidation(loan_id, True)  # isLeverage = True
+        result = self.client.send_transaction(func)
+        self._sync_tx(result['hash'])
+        return result
+
     def sell_percentage(self, token_address: str, percentage: int, to_usdb: bool = False, min_out: int = 0, swap_to_eth: bool = False):
         """Sells a percentage of the user's token balance.
 
@@ -191,6 +235,7 @@ class TradingModule:
     _LEVERAGE_ABI = [
         {"inputs":[{"name":"","type":"address"}],"name":"leverageCount","outputs":[{"name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
         {"inputs":[{"name":"","type":"address"},{"name":"","type":"uint256"}],"name":"leverages","outputs":[{"name":"user","type":"address"},{"name":"token","type":"address"},{"name":"collateralAmount","type":"uint256"},{"name":"liquidatedAmount","type":"uint256"},{"name":"fullAmount","type":"uint256"},{"name":"borrowedAmount","type":"uint256"},{"name":"liquidationTime","type":"uint256"},{"name":"liquidationClaim","type":"uint256"},{"name":"isLiquidated","type":"bool"},{"name":"active","type":"bool"},{"name":"creationTime","type":"uint256"},{"name":"timeOfClosure","type":"uint256"},{"name":"leverage","type":"tuple","components":[{"name":"leverageBuyAmount","type":"uint256"},{"name":"cashedOut","type":"uint256"}]}],"stateMutability":"view","type":"function"},
+        {"inputs":[{"name":"loanId","type":"uint256"},{"name":"isLeverage","type":"bool"}],"name":"ClaimLiquidation","outputs":[{"name":"","type":"uint256"}],"stateMutability":"nonpayable","type":"function"},
     ]
 
     def get_leverage_count(self, user: str) -> int:
