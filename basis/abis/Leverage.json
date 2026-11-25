@@ -1,0 +1,836 @@
+{
+  "abi": [
+    {
+      "inputs": [],
+      "name": "PRICEMULTIPLIER",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bool",
+          "name": "reversed",
+          "type": "bool"
+        },
+        {
+          "internalType": "uint256",
+          "name": "hybridMultiplier",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve1",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "baseReserve0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "baseReserve1",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "xereserve0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "xereserve1",
+          "type": "uint256"
+        }
+      ],
+      "name": "calculateFloor",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "mainPairAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve1",
+          "type": "uint256"
+        }
+      ],
+      "name": "calculateTokensForBuy",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve1",
+          "type": "uint256"
+        }
+      ],
+      "name": "getColleteralValue",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenAmount",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "xereserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "xereserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "multiplier",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "reversed",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "basereserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "basereserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "minAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "contract IEcosystemToken",
+              "name": "main",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "taxRate",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct ALEVERAGE.SimulationState",
+          "name": "st",
+          "type": "tuple"
+        }
+      ],
+      "name": "getColleteralValueHybrid",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "reserve0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve1",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "xereserve0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "xereserve1",
+          "type": "uint256"
+        }
+      ],
+      "name": "getPairPrice",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "reserve0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve1",
+          "type": "uint256"
+        }
+      ],
+      "name": "getTokenPrice",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "taxRate",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve1",
+          "type": "uint256"
+        }
+      ],
+      "name": "simulateDex",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "dexTax",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve0Added",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve1Added",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "boughtTokens",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct ALEVERAGE.DexResult",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve1",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "multiplier",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "reversed",
+          "type": "bool"
+        }
+      ],
+      "name": "simulateDexFactory",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "dexTax",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve0Added",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve1Added",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "boughtTokens",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct ALEVERAGE.DexResult",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address[]",
+          "name": "path",
+          "type": "address[]"
+        },
+        {
+          "internalType": "uint256",
+          "name": "numberOfDays",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "leveragePct",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "trader",
+          "type": "address"
+        }
+      ],
+      "name": "simulateLeverageFactoryLocked",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "newXeReserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "newXeReserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "newReserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "newReserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalRepay",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalBorrowed",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalColleteral",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalFees",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "realLiquidity",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "xeAdded",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "mainPairAdded",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "tokenAdded",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalDexTax",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct ALEVERAGE.EndResult",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address[]",
+          "name": "path",
+          "type": "address[]"
+        },
+        {
+          "internalType": "uint256",
+          "name": "numberOfDays",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "leveragePct",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "trader",
+          "type": "address"
+        }
+      ],
+      "name": "simulateLeverageLocked",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "newXeReserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "newXeReserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "newReserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "newReserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalRepay",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalBorrowed",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalColleteral",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalFees",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "realLiquidity",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "xeAdded",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "mainPairAdded",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "tokenAdded",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalDexTax",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct ALEVERAGE.EndResult",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "contract IEcosystemToken",
+          "name": "main",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "boughtTokens",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserve1",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "numberOfDays",
+          "type": "uint256"
+        }
+      ],
+      "name": "simulateLoan",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "colleteralValue",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalFee",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "borrowedAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "xereserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "xereserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "lpFee",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct ALEVERAGE.LoanResult",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "boughtTokens",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "xereserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "xereserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "multiplier",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "reversed",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "basereserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "basereserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "minAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "contract IEcosystemToken",
+              "name": "main",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "taxRate",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct ALEVERAGE.SimulationState",
+          "name": "st",
+          "type": "tuple"
+        },
+        {
+          "internalType": "uint256",
+          "name": "numberOfDays",
+          "type": "uint256"
+        }
+      ],
+      "name": "simulateLoanHybrid",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "colleteralValue",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalFee",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "borrowedAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "reserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "xereserve0",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "xereserve1",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "lpFee",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct ALEVERAGE.LoanResult",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ]
+}

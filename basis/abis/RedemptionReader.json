@@ -1,0 +1,244 @@
+{
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "x",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "y",
+          "type": "uint256"
+        }
+      ],
+      "name": "PRBMath_MulDiv18_Overflow",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "x",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "y",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "denominator",
+          "type": "uint256"
+        }
+      ],
+      "name": "PRBMath_MulDiv_Overflow",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "UD60x18",
+          "name": "x",
+          "type": "uint256"
+        }
+      ],
+      "name": "PRBMath_UD60x18_Exp2_InputTooBig",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "UD60x18",
+          "name": "x",
+          "type": "uint256"
+        }
+      ],
+      "name": "PRBMath_UD60x18_Log_InputTooSmall",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_SLICES",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "marketToken",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "quoteRedemption",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "bonded",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "tokenAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "usdAtSpot",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "singleOut",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "slicedOut",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "impactSingleBps",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "impactSlicedBps",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "recommendedSlices",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "fitsInOneTx",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "suggestedFractionBps",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct RedemptionReader.Quote",
+          "name": "q",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "marketToken",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "slices",
+          "type": "uint256"
+        }
+      ],
+      "name": "quoteSlices",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "totalOut",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "perSlice",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "marketToken",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "slices",
+          "type": "uint256"
+        }
+      ],
+      "name": "simulateSlicedSell",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "totalOut",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "perSlice",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "marketToken",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "spotValue",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ]
+}
